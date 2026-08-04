@@ -1,0 +1,10 @@
+name: Build
+on:
+  push:
+permissions: read-all
+jobs:
+  build:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@eef61447b4ff0ce0c2c1d7f3f76b1d6d7e3c2f55
