@@ -1,0 +1,12 @@
+name: Build
+on:
+  push:
+    branches:
+      - main
+permissions: read-all
+jobs:
+  build:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4

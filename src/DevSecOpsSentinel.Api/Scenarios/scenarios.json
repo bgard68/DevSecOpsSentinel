@@ -1,0 +1,32 @@
+[
+  {
+    "id": "unpinned-action",
+    "name": "Unpinned action",
+    "description": "Detects a movable action tag.",
+    "fileName": "unpinned-action.yml"
+  },
+  {
+    "id": "excessive-permissions",
+    "name": "Excessive permissions",
+    "description": "Detects write-all workflow permissions.",
+    "fileName": "excessive-permissions.yml"
+  },
+  {
+    "id": "missing-timeout",
+    "name": "Missing job timeout",
+    "description": "Detects a job without timeout-minutes.",
+    "fileName": "missing-timeout.yml"
+  },
+  {
+    "id": "unsafe-pull-request-target",
+    "name": "Unsafe pull_request_target",
+    "description": "Highlights a privileged trigger requiring manual review.",
+    "fileName": "unsafe-pull-request-target.yml"
+  },
+  {
+    "id": "hardened-workflow",
+    "name": "Hardened workflow",
+    "description": "A safe baseline expected to return no findings.",
+    "fileName": "hardened-workflow.yml"
+  }
+]

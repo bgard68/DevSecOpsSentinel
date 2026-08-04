@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>DevSecOpsSentinel.Api</RootNamespace>
+    <UserSecretsId>DevSecOpsSentinel-PhaseC-Local</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevSecOpsSentinel.Application\DevSecOpsSentinel.Application.csproj" />
+    <ProjectReference Include="..\DevSecOpsSentinel.Infrastructure\DevSecOpsSentinel.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Scenarios\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

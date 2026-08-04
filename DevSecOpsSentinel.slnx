@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DevSecOpsSentinel.Domain/DevSecOpsSentinel.Domain.csproj" />
+    <Project Path="src/DevSecOpsSentinel.Application/DevSecOpsSentinel.Application.csproj" />
+    <Project Path="src/DevSecOpsSentinel.Infrastructure/DevSecOpsSentinel.Infrastructure.csproj" />
+    <Project Path="src/DevSecOpsSentinel.Api/DevSecOpsSentinel.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DevSecOpsSentinel.Domain.Tests/DevSecOpsSentinel.Domain.Tests.csproj" />
+    <Project Path="tests/DevSecOpsSentinel.Application.Tests/DevSecOpsSentinel.Application.Tests.csproj" />
+    <Project Path="tests/DevSecOpsSentinel.Infrastructure.Tests/DevSecOpsSentinel.Infrastructure.Tests.csproj" />
+    <Project Path="tests/DevSecOpsSentinel.Api.Integration.Tests/DevSecOpsSentinel.Api.Integration.Tests.csproj" />
+  </Folder>
+</Solution>
