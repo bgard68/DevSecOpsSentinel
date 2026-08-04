@@ -22,7 +22,8 @@ public sealed class WorkflowParser : IWorkflowParser
             .Replace('\r', '\n')
             .Split('\n');
 
-        List<WorkflowLine> lines = BuildSemanticLines(rawLines);
+        SemanticScan scan = BuildSemanticLines(rawLines);
+        List<WorkflowLine> lines = scan.Lines;
 
         WorkflowLine[] meaningfulLines = lines
             .Where(line => line.Text.Length > 0 && !line.Text.StartsWith('#'))
@@ -45,14 +46,46 @@ public sealed class WorkflowParser : IWorkflowParser
         IReadOnlyList<WorkflowJob> jobs = ParseJobs(lines);
 
         return WorkflowParseResult.Success(
-            new ParsedWorkflow(document, lines, jobs, triggers));
+            new ParsedWorkflow(document, lines, jobs, triggers)
+            {
+                ScriptBlocks = scan.ScriptBlocks
+            });
     }
 
-    private static List<WorkflowLine> BuildSemanticLines(
+    private sealed record SemanticScan(
+        List<WorkflowLine> Lines,
+        List<WorkflowScriptBlock> ScriptBlocks);
+
+    private static SemanticScan BuildSemanticLines(
         IReadOnlyList<string> rawLines)
     {
         List<WorkflowLine> lines = [];
+        List<WorkflowScriptBlock> scriptBlocks = [];
+
         int? blockScalarHeaderIndent = null;
+
+        // Set while the scanner is inside a run:/script: block scalar. Content
+        // is withheld from `lines`, because it is shell or JavaScript rather
+        // than YAML, but retained here for rules that analyse script bodies.
+        string? scriptKey = null;
+        int scriptHeaderLine = 0;
+        List<WorkflowLine> scriptContent = [];
+
+        void CloseScriptBlock()
+        {
+            if (scriptKey is null)
+            {
+                return;
+            }
+
+            scriptBlocks.Add(new WorkflowScriptBlock(
+                scriptKey,
+                scriptHeaderLine,
+                scriptContent.ToArray()));
+
+            scriptKey = null;
+            scriptContent = [];
+        }
 
         for (int index = 0; index < rawLines.Count; index++)
         {
@@ -71,10 +104,17 @@ public sealed class WorkflowParser : IWorkflowParser
 
                 if (indent > blockScalarHeaderIndent.Value)
                 {
+                    if (scriptKey is not null)
+                    {
+                        scriptContent.Add(
+                            new WorkflowLine(index + 1, indent, trimmed));
+                    }
+
                     continue;
                 }
 
                 blockScalarHeaderIndent = null;
+                CloseScriptBlock();
             }
 
             WorkflowLine line = new(index + 1, indent, trimmed);
@@ -83,10 +123,43 @@ public sealed class WorkflowParser : IWorkflowParser
             if (IsBlockScalarHeader(trimmed))
             {
                 blockScalarHeaderIndent = indent;
+
+                if (TryGetScriptKey(trimmed) is { } key)
+                {
+                    scriptKey = key;
+                    scriptHeaderLine = index + 1;
+                    scriptContent = [];
+                }
             }
         }
 
-        return lines;
+        CloseScriptBlock();
+
+        return new SemanticScan(lines, scriptBlocks);
+    }
+
+    /// <summary>
+    /// Returns the mapping key of a block scalar whose content is executed,
+    /// or null when the block is ordinary YAML text such as a description.
+    /// </summary>
+    private static string? TryGetScriptKey(string trimmedLine)
+    {
+        string text = trimmedLine;
+
+        if (text.StartsWith("- ", StringComparison.Ordinal))
+        {
+            text = text[2..].TrimStart();
+        }
+
+        int colonIndex = text.IndexOf(':');
+        if (colonIndex <= 0)
+        {
+            return null;
+        }
+
+        string key = text[..colonIndex].Trim();
+
+        return key is "run" or "script" ? key : null;
     }
 
     private static bool IsBlockScalarHeader(string trimmedLine)

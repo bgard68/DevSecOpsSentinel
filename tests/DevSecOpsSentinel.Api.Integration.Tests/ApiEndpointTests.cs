@@ -36,6 +36,65 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
+    public async Task Finding_severity_is_serialized_as_a_name_not_an_integer()
+    {
+        // The client filters and sorts findings by comparing this field to
+        // severity names. An integer here renders an empty findings list and a
+        // "Low" risk label on a workflow that contains high-severity findings.
+        HttpResponseMessage response = await _client.PostAsJsonAsync(
+            "/api/workflows/analyze",
+            new
+            {
+                fileName = "build.yml",
+                content = "name: Build\non:\n  push:\npermissions: write-all\n"
+                    + "jobs:\n  build:\n    timeout-minutes: 15\n"
+                    + "    runs-on: ubuntu-latest\n    steps:\n"
+                    + "      - uses: actions/checkout@0000000000000000000000000000000000000000\n"
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        string body = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("\"severity\":\"High\"", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"severity\":3", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Script_injection_scenario_isolates_the_new_rule()
+    {
+        // The bundled scenario is pinned, permission-scoped and timed out, so
+        // GHA005 should be the only finding it produces. A malformed fixture
+        // would otherwise degrade the demo without failing anything.
+        ScenarioResponse? scenario = await _client
+            .GetFromJsonAsync<ScenarioResponse>("/api/scenarios/script-injection");
+
+        Assert.NotNull(scenario);
+
+        HttpResponseMessage response = await _client.PostAsJsonAsync(
+            "/api/workflows/analyze",
+            new { fileName = scenario!.FileName, content = scenario.Content });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        AnalysisResponse? analysis =
+            await response.Content.ReadFromJsonAsync<AnalysisResponse>();
+
+        Assert.NotNull(analysis);
+        string ruleId = Assert.Single(
+            analysis!.Findings.Select(finding => finding.RuleId).Distinct());
+
+        Assert.Equal("GHA005", ruleId);
+        Assert.Equal("Critical", Assert.Single(analysis.Findings).Severity);
+    }
+
+    private sealed record ScenarioResponse(string FileName, string Content);
+
+    private sealed record AnalysisResponse(FindingResponse[] Findings);
+
+    private sealed record FindingResponse(string RuleId, string Severity);
+
+    [Fact]
     public async Task Vulnerable_workflow_returns_findings()
     {
         var request = new

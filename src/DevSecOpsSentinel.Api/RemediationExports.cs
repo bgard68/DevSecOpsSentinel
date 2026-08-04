@@ -57,6 +57,14 @@ internal static class RemediationExports
         }
     };
 
-    public static string Json(RemediationReport report) => JsonSerializer.Serialize(report, new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true });
+    // Severity names, not their integer values: the JSON export is consumed by
+    // people and by tools that key on the name, matching the SARIF export below.
+    public static string Json(RemediationReport report) => JsonSerializer.Serialize(
+        report,
+        new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            WriteIndented = true,
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+        });
     private static string Encode(string value) => System.Net.WebUtility.HtmlEncode(value);
 }

@@ -1,0 +1,16 @@
+name: Greet contributor
+on:
+  issue_comment:
+    types:
+      - created
+permissions:
+  contents: read
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - name: Thank the commenter
+        run: |
+          echo "Thanks for the note: ${{ github.event.comment.body }}"
