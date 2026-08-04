@@ -1,0 +1,75 @@
+name: Keep warm
+
+# Free-tier substitute for App Service Always On. F1 unloads an idle app after
+# about twenty minutes, and the first request afterwards takes roughly thirty
+# seconds - which for a portfolio deployment lands squarely in the first ten
+# seconds a visitor is willing to wait.
+#
+# WHAT THIS COSTS AGAINST THE FREE TIER: nothing that matters. F1 allows 60
+# CPU-minutes and 165 MB outbound per day. /api/health/live returns a small
+# fixed object, so 64 pings is on the order of one CPU-second and 20 KB. It
+# plausibly SAVES quota, because every cold start a visitor would otherwise
+# trigger costs far more CPU than a ping.
+#
+# WHAT IT DOES NOT DO: eliminate cold starts. GitHub delays scheduled runs
+# under load and may drop them entirely, so a fifteen-minute schedule can
+# slip past the twenty-minute idle timeout. This reduces cold starts; only a
+# Basic tier removes them.
+#
+# Waking hours only - roughly 6am to 10pm Central. Pinging around the clock
+# would double the run count for hours when nobody is looking.
+#
+# NOTE: GitHub disables scheduled workflows in a repository with no commit
+# activity for 60 days. If the app starts sleeping again, check that first.
+#
+# INACTIVE until the repository variable API_BASE_URL is set by
+# ./scripts/provision-azure.ps1 - runs before that exit successfully as a no-op.
+
+on:
+  schedule:
+    - cron: "*/15 11-23 * * *" # 06:00-18:59 Central
+    - cron: "*/15 0-2 * * *" #   19:00-21:59 Central
+  workflow_dispatch:
+
+# Nothing is read and nothing is written: this job only makes an outbound
+# request to a public, unauthenticated endpoint.
+permissions: {}
+
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    name: Ping the API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # No checkout: there is nothing in the repository this needs, and not
+      # cloning is one less place for a credential to be persisted.
+      - name: Warm the app
+        shell: bash
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$API_BASE_URL" ]]; then
+            echo "API_BASE_URL is not set - nothing deployed yet; no-op."
+            exit 0
+          fi
+
+          # /api/health/live is exempt from API-key authentication, so this
+          # needs no secret at all.
+          #
+          # The generous timeout and retries are the point: if the app HAS gone
+          # to sleep, this request is the one paying the cold start. Failing at
+          # five seconds would report a healthy-but-sleeping app as down.
+          curl -fsS \
+            --max-time 90 \
+            --retry 3 \
+            --retry-delay 15 \
+            --retry-all-errors \
+            "$API_BASE_URL/api/health/live"
+          echo

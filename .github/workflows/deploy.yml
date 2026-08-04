@@ -1,0 +1,228 @@
+name: Deploy
+
+# Deploys the API to App Service and the client to Static Web Apps, each only
+# when its own part of the repository changed - the same classification the CI
+# workflow uses, so a documentation commit deploys nothing.
+#
+# Authentication is OIDC federation: GitHub proves its identity per run and no
+# credential is stored. That is enforced rather than agreed - provision-azure.ps1
+# disables basic authentication on both the SCM and FTP endpoints, so a publish
+# profile cannot be used even if one leaked.
+#
+# INACTIVE until the repository variable API_APP_NAME is set by
+# ./scripts/provision-azure.ps1 - every run before that exits successfully as a
+# no-op rather than failing noisily on a deployment target that does not exist.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Deploys must not race. Unlike CI, an in-flight deploy is never cancelled:
+# stopping one midway leaves the app half-updated.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  classify-changes:
+    name: Classify Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      api: ${{ steps.changes.outputs.api }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+      configured: ${{ steps.target.outputs.configured }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Is there anywhere to deploy to?
+        id: target
+        shell: bash
+        env:
+          APP_NAME: ${{ vars.API_APP_NAME }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$APP_NAME" ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "API_APP_NAME is not set - nothing provisioned yet; this run is a no-op."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine which parts of the repository changed
+        id: changes
+        shell: bash
+        #
+        # Workflow expressions are passed through the environment rather than
+        # interpolated into the script body. The values here are GitHub-supplied
+        # commit SHAs, but direct `${{ }}` expansion inside `run:` is the shell
+        # injection pattern this project's own GHA005 rule exists to discourage.
+        #
+        env:
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          emit() {
+            echo "api=$1" >> "$GITHUB_OUTPUT"
+            echo "frontend=$2" >> "$GITHUB_OUTPUT"
+            echo "api=$1 frontend=$2"
+          }
+
+          # A manual run deploys everything: it is an explicit instruction, not
+          # an inference from a diff.
+          if [[ "${GITHUB_EVENT_NAME:-}" == "workflow_dispatch" ]]; then
+            emit true true
+            exit 0
+          fi
+
+          base="$PUSH_BEFORE_SHA"
+          head="$PUSH_HEAD_SHA"
+
+          # The first push to a branch reports an all-zero "before" SHA, and a
+          # force-push can name a commit that no longer exists. Neither is a
+          # reason to skip a deploy, so fall back to deploying both.
+          if [[ -z "$base" || "$base" =~ ^0+$ ]] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            emit true true
+            exit 0
+          fi
+
+          changed="$(git diff --name-only "$base" "$head")"
+          echo "$changed"
+
+          api=false
+          frontend=false
+          if grep -qE '^(src/DevSecOpsSentinel\.(Api|Application|Domain|Infrastructure)/|Directory\.|.*\.slnx?$|global\.json$)' <<<"$changed"; then
+            api=true
+          fi
+          if grep -qE '^src/devsecops-sentinel-web/' <<<"$changed"; then
+            frontend=true
+          fi
+          emit "$api" "$frontend"
+
+  api:
+    name: Deploy API
+    needs: classify-changes
+    if: needs.classify-changes.outputs.configured == 'true' && needs.classify-changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # OIDC federation - GitHub proves its identity per run
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      # The RID is explicit rather than incidental: the runner is Linux and so
+      # is the target, but naming it means the apphost cannot depend on where
+      # the build happened. --self-contained false keeps the artifact at ~8 MB
+      # against the 1 GB the free tier allows.
+      - name: Publish
+        run: dotnet publish src/DevSecOpsSentinel.Api -c Release -r linux-x64 --self-contained false -o publish
+
+      # Deploying the repository instead of the publish output is the failure
+      # this guards against: 199 MB of working tree, 117 MB of it node_modules,
+      # against a 1 GB quota. The artifact is 29 files.
+      - name: Verify the artifact is the publish output, not the working tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -d publish/node_modules || -d publish/src || -d publish/.git ]]; then
+            echo "::error::publish/ contains working-tree directories - refusing to deploy."
+            exit 1
+          fi
+          size_mb=$(du -sm publish | cut -f1)
+          echo "publish/: $(find publish -type f | wc -l) files, ${size_mb} MB"
+          if (( size_mb > 100 )); then
+            echo "::error::publish/ is ${size_mb} MB - far larger than expected (~8 MB)."
+            exit 1
+          fi
+          test -f publish/Scenarios/scenarios.json || { echo "::error::Scenarios/ missing from the artifact."; exit 1; }
+
+      - name: Azure login (OIDC)
+        uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to App Service
+        uses: azure/webapps-deploy@02a81bead70021f5284939794bcec79c271ab383
+        with:
+          app-name: ${{ vars.API_APP_NAME }}
+          package: publish
+
+      # The deploy gate: a red smoke test fails the run, so a broken deploy is
+      # known immediately rather than when a visitor finds it. The key is passed
+      # through the environment so it never appears in a command line.
+      - name: Post-deploy smoke test
+        shell: pwsh
+        env:
+          SENTINEL_API_KEY: ${{ secrets.SENTINEL_API_KEY }}
+          BASE_URL: ${{ vars.API_BASE_URL }}
+        run: ./scripts/smoke-test-api.ps1 -BaseUrl $env:BASE_URL -ApiKey $env:SENTINEL_API_KEY
+
+  frontend:
+    name: Deploy Client
+    needs: classify-changes
+    if: needs.classify-changes.outputs.configured == 'true' && needs.classify-changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/devsecops-sentinel-web/package-lock.json
+
+      - name: Install
+        working-directory: src/devsecops-sentinel-web
+        run: npm ci
+
+      # The API's origin is baked in at build time, so the deployed client calls
+      # the deployed API rather than localhost.
+      - name: Build
+        working-directory: src/devsecops-sentinel-web
+        env:
+          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: npm run build
+
+      - name: Deploy to Static Web Apps
+        uses: Azure/static-web-apps-deploy@4d27395796ac319302594769cfe812bd207490b1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: upload
+          app_location: src/devsecops-sentinel-web/dist
+          skip_app_build: true
+          skip_api_build: true
