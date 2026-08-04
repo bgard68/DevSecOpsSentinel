@@ -7,7 +7,7 @@ using DevSecOpsSentinel.Application;
 namespace DevSecOpsSentinel.Infrastructure.GitHub;
 
 public sealed class GitHubActionReferenceResolver(
-    HttpClient httpClient,
+    IHttpClientFactory httpClientFactory,
     GitHubOptions options,
     IGitHubInstallationTokenProvider tokenProvider)
     : IWorkflowActionReferenceResolver
@@ -135,8 +135,14 @@ public sealed class GitHubActionReferenceResolver(
             "X-GitHub-Api-Version",
             "2022-11-28");
 
+        HttpClient httpClient =
+            httpClientFactory.CreateClient("GitHub");
+
         using HttpResponseMessage response =
-            await httpClient.SendAsync(request, cancellationToken);
+            await httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {

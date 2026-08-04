@@ -8,7 +8,7 @@ using DevSecOpsSentinel.Application;
 namespace DevSecOpsSentinel.Infrastructure.GitHub;
 
 public sealed class GitHubRepositoryReader(
-    HttpClient httpClient,
+    IHttpClientFactory httpClientFactory,
     GitHubOptions options,
     IGitHubInstallationTokenProvider tokenProvider) : IGitHubRepositoryReader
 {
@@ -104,7 +104,13 @@ public sealed class GitHubRepositoryReader(
         request.Headers.Accept.ParseAdd("application/vnd.github+json");
         request.Headers.UserAgent.ParseAdd("DevSecOpsSentinel/0.4.0");
         request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
-        return await httpClient.SendAsync(request, cancellationToken);
+        HttpClient httpClient =
+            httpClientFactory.CreateClient("GitHub");
+
+        return await httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
     }
 
     private void EnsureConfigured()

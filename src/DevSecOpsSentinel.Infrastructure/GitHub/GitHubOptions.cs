@@ -11,12 +11,13 @@ public sealed class GitHubOptions
     public string ApiBaseUrl { get; init; } = "https://api.github.com";
     public string[] AllowedRepositories { get; init; } = [];
 
+    // Pure configuration check. Filesystem availability is validated
+    // explicitly by startup/readiness code and token creation.
     public bool IsConfigured =>
         Enabled &&
         AppId > 0 &&
         InstallationId > 0 &&
         !string.IsNullOrWhiteSpace(PrivateKeyPath) &&
-        File.Exists(PrivateKeyPath) &&
         AllowedRepositories.Length > 0;
 
     public bool IsAllowed(string owner, string repository) =>

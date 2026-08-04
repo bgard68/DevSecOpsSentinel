@@ -6,7 +6,7 @@ using DevSecOpsSentinel.Application;
 namespace DevSecOpsSentinel.Infrastructure.GitHub;
 
 public sealed class GitHubInstallationTokenProvider(
-    HttpClient httpClient,
+    IHttpClientFactory httpClientFactory,
     GitHubOptions options,
     GitHubAppJwtFactory jwtFactory) : IGitHubInstallationTokenProvider
 {
@@ -18,7 +18,14 @@ public sealed class GitHubInstallationTokenProvider(
     {
         if (!options.IsConfigured)
         {
-            throw new InvalidOperationException("GitHub integration is not configured.");
+            throw new InvalidOperationException(
+                "GitHub integration is not configured.");
+        }
+
+        if (!File.Exists(options.PrivateKeyPath))
+        {
+            throw new InvalidOperationException(
+                "The configured GitHub App private key file is unavailable.");
         }
 
         if (CanUseCachedToken())
@@ -42,7 +49,14 @@ public sealed class GitHubInstallationTokenProvider(
             request.Headers.UserAgent.ParseAdd("DevSecOpsSentinel/0.4.0");
             request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
 
-            using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+            HttpClient httpClient =
+                httpClientFactory.CreateClient("GitHub");
+
+            using HttpResponseMessage response =
+                await httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken);
             response.EnsureSuccessStatusCode();
             InstallationTokenResponse? token = await response.Content.ReadFromJsonAsync<InstallationTokenResponse>(cancellationToken);
             if (token is null || string.IsNullOrWhiteSpace(token.Token))

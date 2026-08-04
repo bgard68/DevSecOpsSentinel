@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="OpenAI" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DevSecOpsSentinel.Application\DevSecOpsSentinel.Application.csproj" />

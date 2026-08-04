@@ -82,7 +82,7 @@ public sealed class GitHubIntegrationTests
             """));
 
         GitHubActionReferenceResolver resolver = new(
-            client,
+            new StubHttpClientFactory(client),
             new GitHubOptions(),
             new StubTokenProvider());
 
@@ -102,7 +102,7 @@ public sealed class GitHubIntegrationTests
             string.Empty));
 
         GitHubActionReferenceResolver resolver = new(
-            client,
+            new StubHttpClientFactory(client),
             new GitHubOptions(),
             new StubTokenProvider());
 
@@ -112,6 +112,35 @@ public sealed class GitHubIntegrationTests
                 CancellationToken.None);
 
         Assert.Null(resolved);
+    }
+
+
+    [Fact]
+    public void IsConfigured_does_not_require_private_key_file_to_exist()
+    {
+        GitHubOptions options = new()
+        {
+            Enabled = true,
+            AppId = 12345,
+            InstallationId = 67890,
+            PrivateKeyPath = Path.Combine(
+                Path.GetTempPath(),
+                Guid.NewGuid().ToString("N"),
+                "missing.pem"),
+            AllowedRepositories =
+            [
+                "bgard68/DevSecOpsSentinel-Sandbox"
+            ]
+        };
+
+        Assert.True(options.IsConfigured);
+        Assert.False(File.Exists(options.PrivateKeyPath));
+    }
+
+    private sealed class StubHttpClientFactory(
+        HttpClient client) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => client;
     }
 
     private sealed class StubTokenProvider :

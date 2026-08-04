@@ -131,7 +131,11 @@ GitHubOptions gitHubOptions = builder.Configuration
     ?? new GitHubOptions();
 
 builder.Services.AddSingleton(gitHubOptions);
-builder.Services.AddSingleton(new HttpClient());
+builder.Services.AddHttpClient("GitHub", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
 builder.Services.AddSingleton<GitHubAppJwtFactory>();
 
 builder.Services.AddSingleton<
