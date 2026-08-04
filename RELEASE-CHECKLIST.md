@@ -17,6 +17,8 @@
 - [ ] remediation plan, comparison, and exports work
 - [ ] no write operations exist in GitHub integration
 - [ ] no secrets or private keys are included
-- [ ] screenshots contain no secret values
+- [ ] screenshots contain no secret values — `.gitleaks.toml` allowlists
+      `docs/assets/screenshots/`, so automated secret scanning does not cover
+      them and this manual check is the only control
 - [ ] version is `1.0.0`
 - [ ] changelog and release notes are current
