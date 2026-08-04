@@ -85,9 +85,12 @@ the old key.
 
 ## Reporting
 
+Report a vulnerability through GitHub's private reporting form, on the
+repository's **Security** tab under **Report a vulnerability**. That channel is
+private to the maintainer until an advisory is published.
+
 Do not open a public issue containing a live secret or exploit payload. Revoke
-any exposed credential first and report the issue privately to the repository
-owner.
+any exposed credential first.
 
 ## Repository security controls
 
@@ -95,6 +98,11 @@ Repository governance, workflow controls, dependency maintenance, enforced
 SHA pinning, platform limitations, and accepted residual risks are documented
 in [`docs/security/repository-security-policy.md`](docs/security/repository-security-policy.md).
 
-The repository currently compensates for unavailable private-repository
-GitHub Free controls with feature-branch discipline, green CI before merge,
-Gitleaks, Dependabot, vulnerability audits, and release-package verification.
+The repository is public, so the controls that GitHub Free withholds from
+private repositories are now in force directly rather than being compensated
+for: secret scanning with push protection, Dependabot alerts and security
+updates, CodeQL code scanning, dependency review on pull requests, and branch
+protection on `main` requiring a green CI gate and secret scan.
+
+Gitleaks, the vulnerability audits and release-package verification remain, and
+now sit alongside those controls rather than standing in for them.
