@@ -181,6 +181,121 @@ public sealed class SecurityRuleTests
         Assert.Contains("GHA001", patch.AppliedRuleIds);
     }
 
+    [Fact]
+    public void Workflow_level_permissions_mapping_detects_write_entry()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "permissions:",
+            "  contents: read",
+            "  pull-requests: write",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new ExcessivePermissionsRule().Evaluate(workflow));
+
+        Assert.Equal(6, finding.LineNumber);
+        Assert.False(finding.IsAutomaticallyFixable);
+    }
+
+    [Fact]
+    public void Job_level_permissions_mapping_detects_write_entry()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    permissions:",
+            "      contents: read",
+            "      packages: write",
+            "    runs-on: ubuntu-latest"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new ExcessivePermissionsRule().Evaluate(workflow));
+
+        Assert.Equal(9, finding.LineNumber);
+        Assert.False(finding.IsAutomaticallyFixable);
+    }
+
+    [Fact]
+    public void Unrelated_write_values_are_not_permissions_findings()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "permissions:",
+            "  contents: read",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - name: Configure",
+            "        with:",
+            "          mode: write"
+        ]));
+
+        Assert.Empty(
+            new ExcessivePermissionsRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Commented_write_text_is_not_a_permissions_finding()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "permissions:",
+            "  contents: read",
+            "  # packages: write",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest"
+        ]));
+
+        Assert.Empty(
+            new ExcessivePermissionsRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Inline_write_all_is_detected_and_remains_auto_fixable()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "permissions: write-all # intentionally broad",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new ExcessivePermissionsRule().Evaluate(workflow));
+
+        Assert.Equal(4, finding.LineNumber);
+        Assert.True(finding.IsAutomaticallyFixable);
+    }
+
     private ParsedWorkflow Parse(string content)
     {
         WorkflowParseResult result = _parser.Parse(
