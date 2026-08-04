@@ -403,7 +403,11 @@ public sealed class SecurityRuleTests
         new UnsafePullRequestTargetRule(),
         new ScriptInjectionRule(),
         new PersistedCredentialsRule(),
-        new UntrustedCheckoutRule()
+        new UntrustedCheckoutRule(),
+        new InheritedSecretsRule(),
+        new UndeclaredPermissionsRule(),
+        new SelfHostedRunnerRule(),
+        new ArtifactPoisoningRule()
     ];
 
     private sealed class ReadAllRegressionRule :
@@ -1032,6 +1036,176 @@ public sealed class SecurityRuleTests
             new UntrustedCheckoutRule().Evaluate(workflow));
 
         Assert.Equal(13, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Reusable_workflow_call_inheriting_secrets_is_reported()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on: push",
+            "permissions:",
+            "  contents: read",
+            "jobs:",
+            "  call:",
+            "    uses: bgard68/shared/.github/workflows/build.yml@main",
+            "    secrets: inherit"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new InheritedSecretsRule().Evaluate(workflow));
+
+        Assert.Equal("GHA008", finding.RuleId);
+        Assert.Equal(8, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Named_secrets_on_a_reusable_call_are_not_reported()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on: push",
+            "permissions:",
+            "  contents: read",
+            "jobs:",
+            "  call:",
+            "    uses: bgard68/shared/.github/workflows/build.yml@main",
+            "    secrets:",
+            "      TOKEN: ${{ secrets.BUILD_TOKEN }}"
+        ]));
+
+        Assert.Empty(new InheritedSecretsRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Workflow_without_any_permissions_block_is_reported()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on: push",
+            "jobs:",
+            "  build:",
+            "    runs-on: ubuntu-latest",
+            "    timeout-minutes: 15"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new UndeclaredPermissionsRule().Evaluate(workflow));
+
+        Assert.Equal("GHA009", finding.RuleId);
+        Assert.Null(finding.LineNumber);
+    }
+
+    [Fact]
+    public void Job_level_permissions_satisfy_the_declaration_requirement()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on: push",
+            "jobs:",
+            "  build:",
+            "    permissions:",
+            "      contents: read",
+            "    runs-on: ubuntu-latest",
+            "    timeout-minutes: 15"
+        ]));
+
+        Assert.Empty(new UndeclaredPermissionsRule().Evaluate(workflow));
+    }
+
+    [Theory]
+    [InlineData("self-hosted")]
+    [InlineData("[self-hosted, linux, x64]")]
+    public void Self_hosted_runner_on_a_pull_request_trigger_is_reported(
+        string runsOn)
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on: pull_request",
+            "permissions:",
+            "  contents: read",
+            "jobs:",
+            "  build:",
+            $"    runs-on: {runsOn}",
+            "    timeout-minutes: 15"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new SelfHostedRunnerRule().Evaluate(workflow));
+
+        Assert.Equal("GHA010", finding.RuleId);
+        Assert.Equal(7, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Self_hosted_runner_outside_a_pull_request_trigger_is_not_reported()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Deploy",
+            "on:",
+            "  workflow_dispatch:",
+            "permissions:",
+            "  contents: read",
+            "jobs:",
+            "  deploy:",
+            "    runs-on: self-hosted",
+            "    timeout-minutes: 15"
+        ]));
+
+        Assert.Empty(new SelfHostedRunnerRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Artifact_download_in_a_workflow_run_job_is_reported()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Comment",
+            "on:",
+            "  workflow_run:",
+            "    workflows: [CI]",
+            "    types: [completed]",
+            "permissions:",
+            "  pull-requests: write",
+            "jobs:",
+            "  comment:",
+            "    runs-on: ubuntu-latest",
+            "    timeout-minutes: 15",
+            "    steps:",
+            "      - uses: actions/download-artifact@0000000000000000000000000000000000000000"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new ArtifactPoisoningRule().Evaluate(workflow));
+
+        Assert.Equal("GHA011", finding.RuleId);
+        Assert.Equal(13, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Artifact_download_under_an_ordinary_trigger_is_not_reported()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on: push",
+            "permissions:",
+            "  contents: read",
+            "jobs:",
+            "  build:",
+            "    runs-on: ubuntu-latest",
+            "    timeout-minutes: 15",
+            "    steps:",
+            "      - uses: actions/download-artifact@0000000000000000000000000000000000000000"
+        ]));
+
+        Assert.Empty(new ArtifactPoisoningRule().Evaluate(workflow));
     }
 
     private ParsedWorkflow Parse(string content)

@@ -3,7 +3,6 @@ namespace DevSecOpsSentinel.Domain;
 public sealed record ParsedWorkflow(
     WorkflowDocument Document,
     IReadOnlyList<WorkflowLine> Lines,
-    IReadOnlyList<WorkflowJob> Jobs,
     IReadOnlyList<string> Triggers)
 {
     /// <summary>
@@ -32,9 +31,3 @@ public sealed record WorkflowScriptBlock(
     string Key,
     int HeaderLine,
     IReadOnlyList<WorkflowLine> Content);
-
-public sealed record WorkflowJob(
-    string Name,
-    int DeclarationLine,
-    int Indent,
-    int? TimeoutLine);

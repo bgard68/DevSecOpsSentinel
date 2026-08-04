@@ -30,6 +30,12 @@
     "fileName": "script-injection.yml"
   },
   {
+    "id": "untrusted-checkout",
+    "name": "Privileged checkout of pull-request code",
+    "description": "Detects pull_request_target checking out the contributor's head.",
+    "fileName": "untrusted-checkout.yml"
+  },
+  {
     "id": "hardened-workflow",
     "name": "Hardened workflow",
     "description": "A safe baseline expected to return no findings.",

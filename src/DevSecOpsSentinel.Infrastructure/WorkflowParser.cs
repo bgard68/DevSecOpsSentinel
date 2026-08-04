@@ -59,10 +59,8 @@ public sealed class WorkflowParser : IWorkflowParser
             ? structure.Triggers
             : ParseTriggers(lines);
 
-        IReadOnlyList<WorkflowJob> jobs = ParseJobs(lines);
-
         return WorkflowParseResult.Success(
-            new ParsedWorkflow(document, lines, jobs, triggers)
+            new ParsedWorkflow(document, lines, triggers)
             {
                 ScriptBlocks = scan.ScriptBlocks,
                 Structure = structure
@@ -262,73 +260,5 @@ public sealed class WorkflowParser : IWorkflowParser
         }
 
         return triggers;
-    }
-
-    private static IReadOnlyList<WorkflowJob> ParseJobs(
-        IReadOnlyList<WorkflowLine> lines)
-    {
-        WorkflowLine? jobsLine = lines.FirstOrDefault(line =>
-            line.Text.Equals("jobs:", StringComparison.Ordinal));
-
-        if (jobsLine is null)
-        {
-            return Array.Empty<WorkflowJob>();
-        }
-
-        List<WorkflowJob> jobs = [];
-
-        List<WorkflowLine> jobDeclarations = lines
-            .Where(line =>
-                line.Number > jobsLine.Number &&
-                line.Indent > jobsLine.Indent &&
-                line.Text.EndsWith(':') &&
-                !line.Text.StartsWith('-'))
-            .Where(line =>
-                !line.Text.StartsWith("steps:", StringComparison.Ordinal) &&
-                !line.Text.StartsWith(
-                    "permissions:",
-                    StringComparison.Ordinal))
-            .ToList();
-
-        int? expectedIndent = jobDeclarations.Count > 0
-            ? jobDeclarations.Min(line => line.Indent)
-            : null;
-
-        if (expectedIndent is null)
-        {
-            return jobs;
-        }
-
-        WorkflowLine[] topLevelJobs = jobDeclarations
-            .Where(line => line.Indent == expectedIndent.Value)
-            .ToArray();
-
-        for (int index = 0; index < topLevelJobs.Length; index++)
-        {
-            WorkflowLine declaration = topLevelJobs[index];
-
-            int endLine = index + 1 < topLevelJobs.Length
-                ? topLevelJobs[index + 1].Number
-                : int.MaxValue;
-
-            int? timeoutLine = lines
-                .Where(line =>
-                    line.Number > declaration.Number &&
-                    line.Number < endLine &&
-                    line.Indent > declaration.Indent &&
-                    line.Text.StartsWith(
-                        "timeout-minutes:",
-                        StringComparison.Ordinal))
-                .Select(line => (int?)line.Number)
-                .FirstOrDefault();
-
-            jobs.Add(new WorkflowJob(
-                declaration.Text.TrimEnd(':').Trim(),
-                declaration.Number,
-                declaration.Indent,
-                timeoutLine));
-        }
-
-        return jobs;
     }
 }

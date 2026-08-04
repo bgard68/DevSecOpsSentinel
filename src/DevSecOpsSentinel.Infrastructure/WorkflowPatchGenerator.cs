@@ -220,7 +220,10 @@ public sealed partial class WorkflowPatchGenerator(
         ParsedWorkflow original,
         ParsedWorkflow proposed)
     {
-        return original.Jobs.Count == proposed.Jobs.Count &&
+        // Job counts come from the parsed structure, the same source the rules
+        // read, so patch validation and detection cannot disagree about what a
+        // job is.
+        return original.Structure.Jobs.Count == proposed.Structure.Jobs.Count &&
             original.Triggers
                 .OrderBy(trigger => trigger, StringComparer.Ordinal)
                 .SequenceEqual(

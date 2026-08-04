@@ -23,6 +23,18 @@ public sealed record WorkflowStructure(
 
     public IEnumerable<WorkflowStructuredStep> AllSteps =>
         Jobs.SelectMany(job => job.Steps);
+
+    /// <summary>
+    /// True when neither the workflow nor any job states what the job token may
+    /// do, leaving the grant to the repository default.
+    /// </summary>
+    public bool DeclaresNoPermissions =>
+        Permissions.Count == 0 &&
+        Jobs.All(job => job.Permissions.Count == 0);
+
+    public bool HasTrigger(string name) =>
+        Triggers.Any(trigger =>
+            trigger.Contains(name, StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>
@@ -39,7 +51,21 @@ public sealed record WorkflowStructuredJob(
     int Line,
     int? TimeoutLine,
     IReadOnlyList<WorkflowPermissionEntry> Permissions,
-    IReadOnlyList<WorkflowStructuredStep> Steps);
+    IReadOnlyList<WorkflowStructuredStep> Steps)
+{
+    /// <summary>The <c>runs-on</c> value, with sequence forms joined by a comma.</summary>
+    public string? RunsOn { get; init; }
+
+    public int? RunsOnLine { get; init; }
+
+    /// <summary>Set when the job calls a reusable workflow rather than running steps.</summary>
+    public string? Uses { get; init; }
+
+    /// <summary>The <c>secrets</c> value on a reusable workflow call, such as <c>inherit</c>.</summary>
+    public string? Secrets { get; init; }
+
+    public int? SecretsLine { get; init; }
+}
 
 public sealed record WorkflowStructuredStep(
     string? Uses,

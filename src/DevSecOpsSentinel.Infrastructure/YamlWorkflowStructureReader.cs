@@ -132,6 +132,9 @@ internal static class YamlWorkflowStructureReader
                 continue;
             }
 
+            YamlNode? runsOn = Value(job, "runs-on");
+            YamlNode? secrets = Value(job, "secrets");
+
             results.Add(new WorkflowStructuredJob(
                 name.Value ?? string.Empty,
                 LineOf(entry.Key),
@@ -139,7 +142,14 @@ internal static class YamlWorkflowStructureReader
                     ? LineOf(timeout)
                     : null,
                 ReadPermissions(Value(job, "permissions")),
-                ReadSteps(Value(job, "steps") as YamlSequenceNode)));
+                ReadSteps(Value(job, "steps") as YamlSequenceNode))
+            {
+                RunsOn = FlattenScalar(runsOn),
+                RunsOnLine = runsOn is null ? null : LineOf(runsOn),
+                Uses = (Value(job, "uses") as YamlScalarNode)?.Value,
+                Secrets = FlattenScalar(secrets),
+                SecretsLine = secrets is null ? null : LineOf(secrets)
+            });
         }
 
         return results;
@@ -192,6 +202,30 @@ internal static class YamlWorkflowStructureReader
 
         return results;
     }
+
+    /// <summary>
+    /// Renders a scalar, or a sequence of scalars, as one comparable string.
+    /// <c>runs-on</c> accepts both forms, and a label list such as
+    /// <c>[self-hosted, linux]</c> has to be matchable as a whole.
+    /// </summary>
+    private static string? FlattenScalar(YamlNode? node) => node switch
+    {
+        YamlScalarNode scalar => scalar.Value,
+
+        YamlSequenceNode sequence => string.Join(
+            ",",
+            sequence.Children
+                .OfType<YamlScalarNode>()
+                .Select(child => child.Value ?? string.Empty)),
+
+        YamlMappingNode mapping => string.Join(
+            ",",
+            mapping.Children.Values
+                .OfType<YamlScalarNode>()
+                .Select(child => child.Value ?? string.Empty)),
+
+        _ => null
+    };
 
     private static YamlNode? Value(YamlMappingNode mapping, string key) =>
         mapping.Children.FirstOrDefault(child =>

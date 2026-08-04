@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace DevSecOpsSentinel.Api.Integration.Tests;
 
@@ -58,6 +59,137 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
 
         Assert.Contains("\"severity\":\"High\"", body, StringComparison.Ordinal);
         Assert.DoesNotContain("\"severity\":3", body, StringComparison.Ordinal);
+    }
+
+    private const string VulnerableWorkflow =
+        "name: Build\non:\n  push:\npermissions: write-all\njobs:\n  build:\n"
+        + "    runs-on: ubuntu-latest\n    steps:\n"
+        + "      - uses: actions/checkout@v4\n";
+
+    [Fact]
+    public async Task Sarif_export_conforms_to_the_2_1_0_schema()
+    {
+        // "level" is a closed enum in SARIF. Emitting severity names there
+        // produced a document no SARIF consumer accepts, and an assertion that
+        // only looked for the string "2.1.0" could not tell the difference.
+        HttpResponseMessage response = await _client.PostAsJsonAsync(
+            "/api/workflows/remediation/export/sarif",
+            new { fileName = "build.yml", content = VulnerableWorkflow });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using JsonDocument document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        JsonElement root = document.RootElement;
+
+        Assert.True(
+            root.TryGetProperty("$schema", out JsonElement schema),
+            "SARIF requires the schema key to be named $schema.");
+        Assert.Contains("sarif", schema.GetString()!, StringComparison.Ordinal);
+        Assert.Equal("2.1.0", root.GetProperty("version").GetString());
+
+        JsonElement run = Assert.Single(root.GetProperty("runs").EnumerateArray().ToArray());
+        JsonElement driver = run.GetProperty("tool").GetProperty("driver");
+
+        Assert.False(
+            string.IsNullOrWhiteSpace(driver.GetProperty("name").GetString()));
+        Assert.False(
+            string.IsNullOrWhiteSpace(driver.GetProperty("version").GetString()));
+
+        JsonElement[] rules = driver.GetProperty("rules").EnumerateArray().ToArray();
+        Assert.NotEmpty(rules);
+
+        string[] ruleIds = rules
+            .Select(rule => rule.GetProperty("id").GetString()!)
+            .ToArray();
+
+        Assert.Equal(ruleIds.Length, ruleIds.Distinct(StringComparer.Ordinal).Count());
+
+        string[] validLevels = ["none", "note", "warning", "error"];
+
+        foreach (JsonElement rule in rules)
+        {
+            Assert.Contains(
+                rule.GetProperty("defaultConfiguration").GetProperty("level").GetString(),
+                validLevels);
+
+            // GitHub code scanning reads this to bucket findings.
+            Assert.True(double.TryParse(
+                rule.GetProperty("properties").GetProperty("security-severity").GetString(),
+                out _));
+        }
+
+        JsonElement[] results = run.GetProperty("results").EnumerateArray().ToArray();
+        Assert.NotEmpty(results);
+
+        foreach (JsonElement result in results)
+        {
+            Assert.Contains(result.GetProperty("level").GetString(), validLevels);
+
+            string ruleId = result.GetProperty("ruleId").GetString()!;
+            Assert.Contains(ruleId, ruleIds);
+
+            int ruleIndex = result.GetProperty("ruleIndex").GetInt32();
+            Assert.InRange(ruleIndex, 0, rules.Length - 1);
+            Assert.Equal(ruleIds[ruleIndex], ruleId);
+
+            Assert.False(string.IsNullOrWhiteSpace(
+                result.GetProperty("message").GetProperty("text").GetString()));
+        }
+    }
+
+    [Fact]
+    public async Task Markdown_export_carries_severity_line_and_recommendation()
+    {
+        // Without these the export names a rule and a resolved flag, which is
+        // not enough to triage or locate anything it reports.
+        HttpResponseMessage response = await _client.PostAsJsonAsync(
+            "/api/workflows/remediation/export/markdown",
+            new { fileName = "build.yml", content = VulnerableWorkflow });
+
+        string body = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("| Rule | Severity | Line | Status | Finding |", body, StringComparison.Ordinal);
+        Assert.Contains("GHA002", body, StringComparison.Ordinal);
+        Assert.Contains("High", body, StringComparison.Ordinal);
+        Assert.Contains("Recommended remediation", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Html_export_carries_severity_and_escapes_content()
+    {
+        HttpResponseMessage response = await _client.PostAsJsonAsync(
+            "/api/workflows/remediation/export/html",
+            new { fileName = "build.yml", content = VulnerableWorkflow });
+
+        string body = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("<th>Severity</th>", body, StringComparison.Ordinal);
+        Assert.Contains("GHA002", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script>", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Untrusted_checkout_scenario_demonstrates_the_critical_rule()
+    {
+        ScenarioResponse? scenario = await _client
+            .GetFromJsonAsync<ScenarioResponse>("/api/scenarios/untrusted-checkout");
+
+        Assert.NotNull(scenario);
+
+        HttpResponseMessage response = await _client.PostAsJsonAsync(
+            "/api/workflows/analyze",
+            new { fileName = scenario!.FileName, content = scenario.Content });
+
+        AnalysisResponse? analysis =
+            await response.Content.ReadFromJsonAsync<AnalysisResponse>();
+
+        Assert.NotNull(analysis);
+        Assert.Contains(analysis!.Findings, finding => finding.RuleId == "GHA007");
+        Assert.All(
+            analysis.Findings.Where(finding => finding.RuleId == "GHA007"),
+            finding => Assert.Equal("Critical", finding.Severity));
     }
 
     [Fact]
