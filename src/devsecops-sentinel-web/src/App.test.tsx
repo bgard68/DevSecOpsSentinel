@@ -57,7 +57,19 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByLabelText('Allowed repository')).toHaveValue(repo.fullName));
     await waitFor(() => expect(screen.getByLabelText('Workflow file')).toHaveValue(workflow.path));
     expect(screen.getByLabelText('Workflow YAML')).toHaveAttribute('readonly');
-    fireEvent.click(screen.getByRole('button', { name: 'Analyze GitHub workflow' }));
+
+    // Selecting a repository, then a workflow, then its content is three chained
+    // effects. The analyze button stays disabled until the content arrives, so
+    // clicking as soon as the file select is populated does nothing at all and
+    // the assertion below fails against the empty state. Waiting for the content
+    // itself is the real precondition.
+    await waitFor(() =>
+      expect(screen.getByLabelText('Workflow YAML')).toHaveValue(source.content),
+    );
+
+    const analyzeButton = screen.getByRole('button', { name: 'Analyze GitHub workflow' });
+    expect(analyzeButton).toBeEnabled();
+    fireEvent.click(analyzeButton);
     expect(await screen.findByText('No configured rule violations were detected.')).toBeInTheDocument();
   });
 });
