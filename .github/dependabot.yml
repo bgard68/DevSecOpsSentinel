@@ -1,7 +1,9 @@
 version: 2
 
 updates:
+  #
   # .NET / NuGet
+  #
   - package-ecosystem: "nuget"
     directory: "/"
     schedule:
@@ -9,36 +11,54 @@ updates:
       day: "monday"
       time: "06:00"
       timezone: "America/Chicago"
+
     open-pull-requests-limit: 5
+
     groups:
       dotnet-dependencies:
+        applies-to: version-updates
         patterns:
           - "*"
 
-  # React / npm
+  #
+  # Frontend (npm)
+  #
   - package-ecosystem: "npm"
     directory: "/src/devsecops-sentinel-web"
+
     schedule:
       interval: "weekly"
-      day: "tuesday"
-      time: "06:00"
+      day: "monday"
+      time: "06:15"
       timezone: "America/Chicago"
+
     open-pull-requests-limit: 5
+
     groups:
       frontend-dependencies:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - "patch"
+          - "minor"
 
+  #
   # GitHub Actions
+  #
   - package-ecosystem: "github-actions"
     directory: "/"
+
     schedule:
       interval: "weekly"
-      day: "wednesday"
-      time: "06:00"
+      day: "monday"
+      time: "06:30"
       timezone: "America/Chicago"
+
     open-pull-requests-limit: 5
+
     groups:
       github-actions:
+        applies-to: version-updates
         patterns:
           - "*"
