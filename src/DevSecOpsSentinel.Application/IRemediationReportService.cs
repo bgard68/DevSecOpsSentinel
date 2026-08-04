@@ -4,5 +4,7 @@ namespace DevSecOpsSentinel.Application;
 
 public interface IRemediationReportService
 {
-    RemediationReport Build(WorkflowDocument document);
+    Task<RemediationReport> BuildAsync(
+        WorkflowDocument document,
+        CancellationToken cancellationToken);
 }

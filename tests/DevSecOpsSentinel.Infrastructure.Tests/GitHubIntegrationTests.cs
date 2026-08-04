@@ -1,4 +1,7 @@
+using DevSecOpsSentinel.Application;
 using System.Security.Cryptography;
+using System.Net;
+using System.Text;
 using System.Text.Json;
 using DevSecOpsSentinel.Infrastructure.GitHub;
 
@@ -58,6 +61,85 @@ public sealed class GitHubIntegrationTests
         };
 
         Assert.Equal(expected, options.IsAllowed(owner, repository));
+    }
+
+
+    [Fact]
+    public async Task Action_resolver_returns_commit_sha_for_lightweight_tag()
+    {
+        const string sha =
+            "2222222222222222222222222222222222222222";
+
+        HttpClient client = new(new StubHttpMessageHandler(
+            HttpStatusCode.OK,
+            $$"""
+            {
+              "object": {
+                "type": "commit",
+                "sha": "{{sha}}"
+              }
+            }
+            """));
+
+        GitHubActionReferenceResolver resolver = new(
+            client,
+            new GitHubOptions(),
+            new StubTokenProvider());
+
+        string? resolved =
+            await resolver.ResolveCommitShaAsync(
+                "actions/checkout@v4",
+                CancellationToken.None);
+
+        Assert.Equal(sha, resolved);
+    }
+
+    [Fact]
+    public async Task Action_resolver_returns_null_when_reference_cannot_be_resolved()
+    {
+        HttpClient client = new(new StubHttpMessageHandler(
+            HttpStatusCode.NotFound,
+            string.Empty));
+
+        GitHubActionReferenceResolver resolver = new(
+            client,
+            new GitHubOptions(),
+            new StubTokenProvider());
+
+        string? resolved =
+            await resolver.ResolveCommitShaAsync(
+                "actions/checkout@not-real",
+                CancellationToken.None);
+
+        Assert.Null(resolved);
+    }
+
+    private sealed class StubTokenProvider :
+        IGitHubInstallationTokenProvider
+    {
+        public Task<string> GetTokenAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult("unused");
+    }
+
+    private sealed class StubHttpMessageHandler(
+        HttpStatusCode statusCode,
+        string content) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            HttpResponseMessage response = new(statusCode)
+            {
+                Content = new StringContent(
+                    content,
+                    Encoding.UTF8,
+                    "application/json")
+            };
+
+            return Task.FromResult(response);
+        }
     }
 
     private static byte[] Decode(string value)

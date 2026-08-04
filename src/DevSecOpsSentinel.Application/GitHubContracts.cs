@@ -53,3 +53,10 @@ public interface IGitHubInstallationTokenProvider
 {
     Task<string> GetTokenAsync(CancellationToken cancellationToken);
 }
+
+public interface IWorkflowActionReferenceResolver
+{
+    Task<string?> ResolveCommitShaAsync(
+        string actionReference,
+        CancellationToken cancellationToken);
+}

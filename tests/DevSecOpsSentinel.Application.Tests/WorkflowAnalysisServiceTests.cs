@@ -6,12 +6,19 @@ namespace DevSecOpsSentinel.Application.Tests;
 public sealed class WorkflowAnalysisServiceTests
 {
     [Fact]
-    public void Invalid_parse_result_is_returned_without_executing_rules()
+    public async Task Invalid_parse_result_is_returned_without_executing_rules()
     {
         StubParser parser = new();
-        WorkflowAnalysisService service = new(parser, Array.Empty<IWorkflowSecurityRule>(), new StubPatchGenerator());
 
-        WorkflowAnalysisResult result = service.Analyze(new WorkflowDocument("bad.yml", "invalid"));
+        WorkflowAnalysisService service = new(
+            parser,
+            Array.Empty<IWorkflowSecurityRule>(),
+            new StubPatchGenerator());
+
+        WorkflowAnalysisResult result =
+            await service.AnalyzeAsync(
+                new WorkflowDocument("bad.yml", "invalid"),
+                CancellationToken.None);
 
         Assert.False(result.IsValid);
         Assert.Single(result.ValidationErrors);
@@ -21,13 +28,20 @@ public sealed class WorkflowAnalysisServiceTests
 
     private sealed class StubParser : IWorkflowParser
     {
-        public WorkflowParseResult Parse(WorkflowDocument document) =>
-            WorkflowParseResult.Failure("Invalid workflow.");
+        public WorkflowParseResult Parse(
+            WorkflowDocument document) =>
+            WorkflowParseResult.Failure(
+                "Invalid workflow.");
     }
 
-    private sealed class StubPatchGenerator : IWorkflowPatchGenerator
+    private sealed class StubPatchGenerator :
+        IWorkflowPatchGenerator
     {
-        public WorkflowPatch Generate(ParsedWorkflow workflow, IReadOnlyList<WorkflowFinding> findings) =>
-            throw new InvalidOperationException("Patch generation should not execute.");
+        public Task<WorkflowPatch> GenerateAsync(
+            ParsedWorkflow workflow,
+            IReadOnlyList<WorkflowFinding> findings,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "Patch generation should not execute.");
     }
 }

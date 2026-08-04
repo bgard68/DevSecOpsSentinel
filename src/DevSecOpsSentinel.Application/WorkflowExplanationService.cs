@@ -12,7 +12,10 @@ public sealed class WorkflowExplanationService(
         bool useAi,
         CancellationToken cancellationToken)
     {
-        WorkflowAnalysisResult analysis = analysisService.Analyze(document);
+        WorkflowAnalysisResult analysis =
+            await analysisService.AnalyzeAsync(
+                document,
+                cancellationToken);
         SanitizedWorkflow sanitized = sanitizer.Sanitize(document.Content);
 
         WorkflowAiExplanation explanation;

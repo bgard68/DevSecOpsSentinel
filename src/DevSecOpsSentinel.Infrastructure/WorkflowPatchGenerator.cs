@@ -1,21 +1,22 @@
+using System.Text.RegularExpressions;
 using DevSecOpsSentinel.Application;
 using DevSecOpsSentinel.Domain;
 
 namespace DevSecOpsSentinel.Infrastructure;
 
-public sealed class WorkflowPatchGenerator(
+public sealed partial class WorkflowPatchGenerator(
     IWorkflowParser parser,
-    IEnumerable<IWorkflowSecurityRule> rules) : IWorkflowPatchGenerator
+    IEnumerable<IWorkflowSecurityRule> rules,
+    IWorkflowActionReferenceResolver actionReferenceResolver)
+    : IWorkflowPatchGenerator
 {
-    private const string PlaceholderSha =
-        "0000000000000000000000000000000000000000";
-
     private readonly IReadOnlyList<IWorkflowSecurityRule> _rules =
         rules.ToArray();
 
-    public WorkflowPatch Generate(
+    public async Task<WorkflowPatch> GenerateAsync(
         ParsedWorkflow workflow,
-        IReadOnlyList<WorkflowFinding> findings)
+        IReadOnlyList<WorkflowFinding> findings,
+        CancellationToken cancellationToken)
     {
         List<string> lines = workflow.Document.Content
             .Replace("\r\n", "\n", StringComparison.Ordinal)
@@ -46,21 +47,32 @@ public sealed class WorkflowPatchGenerator(
 
             if (finding.RuleId == "GHA001")
             {
-                int atIndex = lines[index].IndexOf('@');
-                if (atIndex < 0)
+                Match match = ActionReferenceRegex().Match(lines[index]);
+                if (!match.Success)
                 {
                     continue;
                 }
 
-                int commentIndex =
-                    lines[index].IndexOf('#', atIndex);
+                string? resolvedSha =
+                    await actionReferenceResolver.ResolveCommitShaAsync(
+                        match.Groups["reference"].Value,
+                        cancellationToken);
 
-                string comment = commentIndex >= 0
-                    ? " " + lines[index][commentIndex..].TrimStart()
-                    : string.Empty;
+                if (!IsFullCommitSha(resolvedSha))
+                {
+                    // Fail closed: leave the movable reference unchanged,
+                    // do not claim the finding was remediated, and do not
+                    // reduce its risk score.
+                    continue;
+                }
 
-                string prefix = lines[index][..(atIndex + 1)];
-                lines[index] = prefix + PlaceholderSha + comment;
+                lines[index] =
+                    lines[index][..match.Groups["version"].Index] +
+                    resolvedSha +
+                    lines[index][
+                        (match.Groups["version"].Index +
+                         match.Groups["version"].Length)..];
+
                 appliedFindings.Add(finding);
             }
             else if (
@@ -169,9 +181,13 @@ public sealed class WorkflowPatchGenerator(
 
         foreach (string ruleId in allRuleIds)
         {
-            int originalCount = originalCounts.GetValueOrDefault(ruleId);
-            int appliedCount = appliedCounts.GetValueOrDefault(ruleId);
-            int proposedCount = proposedCounts.GetValueOrDefault(ruleId);
+            int originalCount =
+                originalCounts.GetValueOrDefault(ruleId);
+            int appliedCount =
+                appliedCounts.GetValueOrDefault(ruleId);
+            int proposedCount =
+                proposedCounts.GetValueOrDefault(ruleId);
+
             int maximumExpectedCount =
                 Math.Max(0, originalCount - appliedCount);
 
@@ -219,6 +235,14 @@ public sealed class WorkflowPatchGenerator(
             semanticLineNumbers.Contains(lineNumber.Value);
     }
 
+    private static bool IsFullCommitSha(string? value) =>
+        value is not null &&
+        value.Length == 40 &&
+        value.All(character =>
+            character is >= '0' and <= '9' ||
+            character is >= 'a' and <= 'f' ||
+            character is >= 'A' and <= 'F');
+
     private static string RemoveTrailingComment(string text)
     {
         int commentIndex = text.IndexOf('#');
@@ -227,4 +251,9 @@ public sealed class WorkflowPatchGenerator(
             ? text[..commentIndex].TrimEnd()
             : text;
     }
+
+    [GeneratedRegex(
+        @"uses:\s*(?<reference>[^@\s#]+@(?<version>[^\s#]+))",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex ActionReferenceRegex();
 }

@@ -4,5 +4,7 @@ namespace DevSecOpsSentinel.Application;
 
 public interface IWorkflowAnalysisService
 {
-    WorkflowAnalysisResult Analyze(WorkflowDocument document);
+    Task<WorkflowAnalysisResult> AnalyzeAsync(
+        WorkflowDocument document,
+        CancellationToken cancellationToken);
 }

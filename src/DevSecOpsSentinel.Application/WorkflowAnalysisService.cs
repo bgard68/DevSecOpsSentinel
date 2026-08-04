@@ -5,9 +5,12 @@ namespace DevSecOpsSentinel.Application;
 public sealed class WorkflowAnalysisService(
     IWorkflowParser parser,
     IEnumerable<IWorkflowSecurityRule> rules,
-    IWorkflowPatchGenerator patchGenerator) : IWorkflowAnalysisService
+    IWorkflowPatchGenerator patchGenerator)
+    : IWorkflowAnalysisService
 {
-    public WorkflowAnalysisResult Analyze(WorkflowDocument document)
+    public async Task<WorkflowAnalysisResult> AnalyzeAsync(
+        WorkflowDocument document,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -25,11 +28,18 @@ public sealed class WorkflowAnalysisService(
         WorkflowFinding[] findings = rules
             .SelectMany(rule => rule.Evaluate(parseResult.Workflow))
             .OrderByDescending(finding => finding.Severity)
-            .ThenBy(finding => finding.LineNumber ?? int.MaxValue)
-            .ThenBy(finding => finding.RuleId, StringComparer.Ordinal)
+            .ThenBy(finding =>
+                finding.LineNumber ?? int.MaxValue)
+            .ThenBy(
+                finding => finding.RuleId,
+                StringComparer.Ordinal)
             .ToArray();
 
-        WorkflowPatch patch = patchGenerator.Generate(parseResult.Workflow, findings);
+        WorkflowPatch patch =
+            await patchGenerator.GenerateAsync(
+                parseResult.Workflow,
+                findings,
+                cancellationToken);
 
         return new WorkflowAnalysisResult(
             document.FileName,

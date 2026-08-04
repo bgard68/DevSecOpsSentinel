@@ -4,7 +4,8 @@ namespace DevSecOpsSentinel.Application;
 
 public interface IWorkflowPatchGenerator
 {
-    WorkflowPatch Generate(
+    Task<WorkflowPatch> GenerateAsync(
         ParsedWorkflow workflow,
-        IReadOnlyList<WorkflowFinding> findings);
+        IReadOnlyList<WorkflowFinding> findings,
+        CancellationToken cancellationToken);
 }

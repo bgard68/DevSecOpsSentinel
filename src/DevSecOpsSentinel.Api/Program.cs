@@ -111,6 +111,10 @@ builder.Services.AddSingleton<
     IGitHubRepositoryReader,
     GitHubRepositoryReader>();
 
+builder.Services.AddSingleton<
+    IWorkflowActionReferenceResolver,
+    GitHubActionReferenceResolver>();
+
 WebApplication app = builder.Build();
 
 if (app.Environment.IsDevelopment() ||
@@ -406,7 +410,9 @@ app.MapPost(
         }
 
         WorkflowAnalysisResult analyzed =
-            analysisService.Analyze(document);
+            await analysisService.AnalyzeAsync(
+                document,
+                cancellationToken);
 
         return Results.Ok(new
         {
@@ -455,9 +461,10 @@ app.MapGet(
 
 app.MapPost(
     "/api/workflows/analyze",
-    (
+    async (
         AnalyzeWorkflowRequest? request,
-        IWorkflowAnalysisService service) =>
+        IWorkflowAnalysisService service,
+        CancellationToken cancellationToken) =>
     {
         IResult? validationFailure =
             ValidateWorkflowRequest(
@@ -470,10 +477,11 @@ app.MapPost(
         }
 
         WorkflowAnalysisResult result =
-            service.Analyze(
+            await service.AnalyzeAsync(
                 new WorkflowDocument(
                     request!.FileName,
-                    request.Content));
+                    request.Content),
+                cancellationToken);
 
         return !result.IsValid
             ? Results.Problem(
@@ -497,9 +505,10 @@ app.MapPost(
 
 app.MapPost(
     "/api/workflows/remediation",
-    (
+    async (
         AnalyzeWorkflowRequest? request,
-        IRemediationReportService service) =>
+        IRemediationReportService service,
+        CancellationToken cancellationToken) =>
     {
         IResult? validationFailure =
             ValidateWorkflowRequest(
@@ -512,10 +521,11 @@ app.MapPost(
         }
 
         RemediationReport report =
-            service.Build(
+            await service.BuildAsync(
                 new WorkflowDocument(
                     request!.FileName,
-                    request.Content));
+                    request.Content),
+                cancellationToken);
 
         return !report.OriginalAnalysis.IsValid
             ? Results.Problem(
@@ -531,10 +541,11 @@ app.MapPost(
 
 app.MapPost(
     "/api/workflows/remediation/export/{format}",
-    (
+    async (
         string format,
         AnalyzeWorkflowRequest? request,
-        IRemediationReportService service) =>
+        IRemediationReportService service,
+        CancellationToken cancellationToken) =>
     {
         IResult? validationFailure =
             ValidateWorkflowRequest(
@@ -547,10 +558,11 @@ app.MapPost(
         }
 
         RemediationReport report =
-            service.Build(
+            await service.BuildAsync(
                 new WorkflowDocument(
                     request!.FileName,
-                    request.Content));
+                    request.Content),
+                cancellationToken);
 
         string safeName =
             Path.GetFileNameWithoutExtension(request.FileName);

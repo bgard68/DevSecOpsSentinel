@@ -140,7 +140,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Patch_generator_never_rewrites_run_block_content()
+    public async Task Patch_generator_never_rewrites_run_block_content()
     {
         string content = string.Join('\n',
         [
@@ -164,10 +164,15 @@ public sealed class SecurityRuleTests
             new UnpinnedActionRule().Evaluate(workflow);
 
         WorkflowPatch patch =
-            new WorkflowPatchGenerator(
+            await new WorkflowPatchGenerator(
                 _parser,
-                CreateRules())
-                .Generate(workflow, findings);
+                CreateRules(),
+                new StubActionReferenceResolver(
+                    "1111111111111111111111111111111111111111"))
+                .GenerateAsync(
+                    workflow,
+                    findings,
+                    CancellationToken.None);
 
         Assert.Contains(
             "          uses: actions/setup-node@v4",
@@ -175,7 +180,7 @@ public sealed class SecurityRuleTests
             StringComparison.Ordinal);
 
         Assert.Contains(
-            "- uses: actions/checkout@0000000000000000000000000000000000000000",
+            "- uses: actions/checkout@1111111111111111111111111111111111111111",
             patch.ProposedContent,
             StringComparison.Ordinal);
 
@@ -300,7 +305,7 @@ public sealed class SecurityRuleTests
 
 
     [Fact]
-    public void Patch_is_valid_only_when_applied_findings_are_removed()
+    public async Task Patch_is_valid_only_when_applied_findings_are_removed()
     {
         string content = string.Join('\n',
         [
@@ -320,10 +325,16 @@ public sealed class SecurityRuleTests
             .SelectMany(rule => rule.Evaluate(workflow))
             .ToArray();
 
-        WorkflowPatch patch = new WorkflowPatchGenerator(
-            _parser,
-            rules)
-            .Generate(workflow, findings);
+        WorkflowPatch patch =
+            await new WorkflowPatchGenerator(
+                _parser,
+                rules,
+                new StubActionReferenceResolver(
+                    "1111111111111111111111111111111111111111"))
+                .GenerateAsync(
+                    workflow,
+                    findings,
+                    CancellationToken.None);
 
         Assert.True(patch.ProposedContentIsValid);
         Assert.Contains("GHA002", patch.AppliedRuleIds);
@@ -334,7 +345,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Patch_is_invalid_when_remediation_introduces_a_new_finding()
+    public async Task Patch_is_invalid_when_remediation_introduces_a_new_finding()
     {
         string content = string.Join('\n',
         [
@@ -360,10 +371,16 @@ public sealed class SecurityRuleTests
             .SelectMany(rule => rule.Evaluate(workflow))
             .ToArray();
 
-        WorkflowPatch patch = new WorkflowPatchGenerator(
-            _parser,
-            rules)
-            .Generate(workflow, findings);
+        WorkflowPatch patch =
+            await new WorkflowPatchGenerator(
+                _parser,
+                rules,
+                new StubActionReferenceResolver(
+                    "1111111111111111111111111111111111111111"))
+                .GenerateAsync(
+                    workflow,
+                    findings,
+                    CancellationToken.None);
 
         Assert.False(patch.ProposedContentIsValid);
     }
@@ -398,6 +415,65 @@ public sealed class SecurityRuleTests
                     "Do not introduce this value.",
                     false))
                 .ToArray();
+    }
+
+
+    [Fact]
+    public async Task Unresolved_action_reference_is_not_rewritten_or_counted_as_applied()
+    {
+        string content = string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@v4"
+        ]);
+
+        ParsedWorkflow workflow = Parse(content);
+        IReadOnlyList<IWorkflowSecurityRule> rules = CreateRules();
+
+        WorkflowFinding[] findings = rules
+            .SelectMany(rule => rule.Evaluate(workflow))
+            .ToArray();
+
+        WorkflowPatch patch =
+            await new WorkflowPatchGenerator(
+                _parser,
+                rules,
+                new StubActionReferenceResolver(null))
+                .GenerateAsync(
+                    workflow,
+                    findings,
+                    CancellationToken.None);
+
+        Assert.DoesNotContain(
+            "0000000000000000000000000000000000000000",
+            patch.ProposedContent,
+            StringComparison.Ordinal);
+
+        Assert.Contains(
+            "actions/checkout@v4",
+            patch.ProposedContent,
+            StringComparison.Ordinal);
+
+        Assert.DoesNotContain(
+            "GHA001",
+            patch.AppliedRuleIds);
+    }
+
+    private sealed class StubActionReferenceResolver(
+        string? resolvedSha)
+        : IWorkflowActionReferenceResolver
+    {
+        public Task<string?> ResolveCommitShaAsync(
+            string actionReference,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(resolvedSha);
     }
 
     private ParsedWorkflow Parse(string content)
