@@ -84,3 +84,7 @@ jobs:
       - name: Build frontend
         working-directory: src/devsecops-sentinel-web
         run: npm run build
+
+      - name: Verify release package
+        shell: pwsh
+        run: ./scripts/verify-release-package.ps1
