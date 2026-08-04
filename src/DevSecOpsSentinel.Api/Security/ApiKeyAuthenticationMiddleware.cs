@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
@@ -6,12 +7,17 @@ namespace DevSecOpsSentinel.Api.Security;
 
 public sealed class ApiKeyAuthenticationMiddleware(
     RequestDelegate next,
-    ApiSecurityOptions options,
+    IConfiguration configuration,
     IWebHostEnvironment environment,
     ILogger<ApiKeyAuthenticationMiddleware> logger)
 {
     public async Task InvokeAsync(HttpContext context)
     {
+        ApiSecurityOptions options = configuration
+            .GetSection(ApiSecurityOptions.SectionName)
+            .Get<ApiSecurityOptions>()
+            ?? new ApiSecurityOptions();
+
         if (!options.IsRequired ||
             IsPublicRequest(context.Request.Path))
         {
@@ -23,7 +29,9 @@ public sealed class ApiKeyAuthenticationMiddleware(
                 options.HeaderName,
                 out var suppliedValues) ||
             suppliedValues.Count != 1 ||
-            !IsValidKey(suppliedValues[0]))
+            !IsValidKey(
+                suppliedValues[0],
+                options.ApiKey))
         {
             logger.LogWarning(
                 "Rejected unauthorized request for {Method} {Path}.",
@@ -51,15 +59,18 @@ public sealed class ApiKeyAuthenticationMiddleware(
                 path.StartsWithSegments("/scalar"));
     }
 
-    private bool IsValidKey(string? suppliedKey)
+    private static bool IsValidKey(
+        string? suppliedKey,
+        string configuredKey)
     {
-        if (string.IsNullOrEmpty(suppliedKey))
+        if (string.IsNullOrEmpty(suppliedKey) ||
+            string.IsNullOrEmpty(configuredKey))
         {
             return false;
         }
 
         byte[] expectedHash = SHA256.HashData(
-            Encoding.UTF8.GetBytes(options.ApiKey));
+            Encoding.UTF8.GetBytes(configuredKey));
 
         byte[] suppliedHash = SHA256.HashData(
             Encoding.UTF8.GetBytes(suppliedKey));
@@ -88,7 +99,8 @@ public sealed class ApiKeyAuthenticationMiddleware(
                 "A valid API key must be supplied with this request."
         };
 
-        await context.Response.WriteAsJsonAsync(
+        await JsonSerializer.SerializeAsync(
+            context.Response.Body,
             problem,
             cancellationToken:
                 context.RequestAborted);

@@ -30,28 +30,28 @@ builder.Services.AddOpenApi();
 builder.Services.AddOutputCache();
 builder.Services.AddMemoryCache();
 
-ApiSecurityOptions apiSecurityOptions = builder.Configuration
-    .GetSection(ApiSecurityOptions.SectionName)
-    .Get<ApiSecurityOptions>()
-    ?? new ApiSecurityOptions();
-
-apiSecurityOptions.Validate(builder.Environment.EnvironmentName);
-builder.Services.AddSingleton(apiSecurityOptions);
-
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("frontend", policy =>
     {
-        if (apiSecurityOptions.AllowedOrigins.Length > 0)
-        {
-            policy
-                .WithOrigins(apiSecurityOptions.AllowedOrigins)
-                .WithMethods("GET", "POST")
-                .WithHeaders(
-                    "Content-Type",
-                    apiSecurityOptions.HeaderName,
-                    "X-Correlation-ID");
-        }
+        policy
+            .SetIsOriginAllowed(origin =>
+            {
+                ApiSecurityOptions current =
+                    builder.Configuration
+                        .GetSection(ApiSecurityOptions.SectionName)
+                        .Get<ApiSecurityOptions>()
+                    ?? new ApiSecurityOptions();
+
+                return current.AllowedOrigins.Contains(
+                    origin,
+                    StringComparer.OrdinalIgnoreCase);
+            })
+            .WithMethods("GET", "POST")
+            .WithHeaders(
+                "Content-Type",
+                "X-API-Key",
+                "X-Correlation-ID");
     });
 });
 
@@ -147,6 +147,14 @@ builder.Services.AddSingleton<
     GitHubActionReferenceResolver>();
 
 WebApplication app = builder.Build();
+
+ApiSecurityOptions configuredSecurity =
+    app.Configuration
+        .GetSection(ApiSecurityOptions.SectionName)
+        .Get<ApiSecurityOptions>()
+    ?? new ApiSecurityOptions();
+
+configuredSecurity.Validate(app.Environment.EnvironmentName);
 
 if (app.Environment.IsDevelopment() ||
     app.Environment.IsEnvironment("Testing"))
