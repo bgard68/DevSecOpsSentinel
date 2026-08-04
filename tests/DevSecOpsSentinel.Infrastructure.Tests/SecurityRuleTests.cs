@@ -400,7 +400,10 @@ public sealed class SecurityRuleTests
         new UnpinnedActionRule(),
         new ExcessivePermissionsRule(),
         new MissingTimeoutRule(),
-        new UnsafePullRequestTargetRule()
+        new UnsafePullRequestTargetRule(),
+        new ScriptInjectionRule(),
+        new PersistedCredentialsRule(),
+        new UntrustedCheckoutRule()
     ];
 
     private sealed class ReadAllRegressionRule :
@@ -533,6 +536,502 @@ public sealed class SecurityRuleTests
                         ActionReferenceResolutionStatus.Resolved,
                         resolvedSha,
                         "Resolved."));
+    }
+
+    [Theory]
+    [InlineData("github.event.issue.title")]
+    [InlineData("github.event.pull_request.title")]
+    [InlineData("github.event.pull_request.head.ref")]
+    [InlineData("github.event.comment.body")]
+    [InlineData("github.event.head_commit.message")]
+    [InlineData("github.head_ref")]
+    public void Untrusted_expression_in_a_run_block_is_a_script_injection(
+        string context)
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  pull_request:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - name: Greet",
+            "        run: |",
+            $"          echo \"Thanks for ${{{{ {context} }}}}\""
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new ScriptInjectionRule().Evaluate(workflow));
+
+        Assert.Equal("GHA005", finding.RuleId);
+        Assert.Equal(WorkflowSeverity.Critical, finding.Severity);
+        Assert.Equal(11, finding.LineNumber);
+        Assert.Contains(context, finding.Description, StringComparison.Ordinal);
+        Assert.False(finding.IsAutomaticallyFixable);
+    }
+
+    [Fact]
+    public void Untrusted_expression_in_a_single_line_run_is_detected()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  issues:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - run: echo \"${{ github.event.issue.body }}\""
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new ScriptInjectionRule().Evaluate(workflow));
+
+        Assert.Equal(9, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Untrusted_expression_in_a_github_script_block_is_detected()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  issue_comment:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/github-script@v7",
+            "        with:",
+            "          script: |",
+            "            console.log(\"${{ github.event.comment.body }}\")"
+        ]));
+
+        Assert.Single(new ScriptInjectionRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Trusted_expressions_in_a_run_block_are_not_reported()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  pull_request:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - name: Report",
+            "        run: |",
+            "          echo \"${{ github.sha }}\"",
+            "          echo \"${{ github.repository }}\"",
+            "          echo \"${{ github.run_id }}\"",
+            "          echo \"${{ secrets.GITHUB_TOKEN }}\""
+        ]));
+
+        Assert.Empty(new ScriptInjectionRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Untrusted_expression_outside_a_script_body_is_not_reported()
+    {
+        // `if:` and `with:` values are evaluated by the expression engine, not
+        // substituted into a shell, so they are not injection sinks.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  pull_request:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - name: Conditional",
+            "        if: ${{ github.event.pull_request.title != '' }}",
+            "        uses: actions/labeler@0000000000000000000000000000000000000000",
+            "        with:",
+            "          title: ${{ github.event.pull_request.title }}"
+        ]));
+
+        Assert.Empty(new ScriptInjectionRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Bound_environment_variable_is_the_recommended_safe_form()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  pull_request:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - name: Greet",
+            "        env:",
+            "          TITLE: ${{ github.event.pull_request.title }}",
+            "        run: |",
+            "          echo \"$TITLE\""
+        ]));
+
+        Assert.Empty(new ScriptInjectionRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Script_block_content_is_still_excluded_from_yaml_lines()
+    {
+        // The parser must keep withholding script bodies from Lines, or the
+        // unpinned-action and permissions rules regress to false positives.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - name: Text",
+            "        run: |",
+            "          uses: actions/checkout@v4",
+            "          contents: write"
+        ]));
+
+        Assert.Empty(new UnpinnedActionRule().Evaluate(workflow));
+        Assert.Empty(new ExcessivePermissionsRule().Evaluate(workflow));
+
+        WorkflowScriptBlock block = Assert.Single(workflow.ScriptBlocks);
+        Assert.Equal("run", block.Key);
+        Assert.Equal(10, block.HeaderLine);
+        Assert.Equal(2, block.Content.Count);
+    }
+
+    [Fact]
+    public void Checkout_without_persist_credentials_uses_the_unsafe_default()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new PersistedCredentialsRule().Evaluate(workflow));
+
+        Assert.Equal("GHA006", finding.RuleId);
+        Assert.Equal(9, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Checkout_that_disables_persist_credentials_is_not_reported()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - name: Checkout",
+            "        uses: actions/checkout@0000000000000000000000000000000000000000",
+            "        with:",
+            "          persist-credentials: false"
+        ]));
+
+        Assert.Empty(new PersistedCredentialsRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Persist_credentials_set_to_true_is_reported_at_its_own_line()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000",
+            "        with:",
+            "          persist-credentials: true"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new PersistedCredentialsRule().Evaluate(workflow));
+
+        Assert.Equal(11, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Non_checkout_actions_are_not_persist_credentials_findings()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/setup-node@0000000000000000000000000000000000000000",
+            "        with:",
+            "          node-version: 22"
+        ]));
+
+        Assert.Empty(new PersistedCredentialsRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Pull_request_target_checking_out_head_sha_is_critical()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Review",
+            "on:",
+            "  pull_request_target:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000",
+            "        with:",
+            "          ref: ${{ github.event.pull_request.head.sha }}"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new UntrustedCheckoutRule().Evaluate(workflow));
+
+        Assert.Equal("GHA007", finding.RuleId);
+        Assert.Equal(WorkflowSeverity.Critical, finding.Severity);
+        Assert.Equal(11, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Pull_request_target_without_an_untrusted_ref_is_not_reported()
+    {
+        // The trigger alone is GHA004's concern. Without a checkout of the
+        // contributor's code there is no execution of untrusted input.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Label",
+            "on:",
+            "  pull_request_target:",
+            "jobs:",
+            "  label:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000"
+        ]));
+
+        Assert.Empty(new UntrustedCheckoutRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Untrusted_ref_under_the_safe_trigger_is_not_reported()
+    {
+        // pull_request already runs in the contributor's context without
+        // secrets, so checking out their head is the normal, safe thing to do.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  pull_request:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000",
+            "        with:",
+            "          ref: ${{ github.event.pull_request.head.sha }}"
+        ]));
+
+        Assert.Empty(new UntrustedCheckoutRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void With_inputs_are_attributed_to_the_step_that_declares_them()
+    {
+        // Two checkout steps in one job: only the second disables the token.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000",
+            "        with:",
+            "          persist-credentials: false"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new PersistedCredentialsRule().Evaluate(workflow));
+
+        Assert.Equal(9, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Flow_style_permissions_are_detected()
+    {
+        // Indentation matching only recognised a permissions: block followed by
+        // indented entries, so this form was silently missed.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on: push",
+            "permissions: {contents: write, issues: read}",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new ExcessivePermissionsRule().Evaluate(workflow));
+
+        Assert.Equal(3, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Quoted_on_key_still_yields_triggers()
+    {
+        // Written this way to stop YAML 1.1 resolving `on` to the boolean true.
+        // A prefix match on "on:" does not see it.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Review",
+            "'on':",
+            "  pull_request_target:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest"
+        ]));
+
+        Assert.Contains("pull_request_target", workflow.Triggers);
+        Assert.Single(new UnsafePullRequestTargetRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Trigger_written_as_a_flow_sequence_is_understood()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Review",
+            "on: [push, pull_request_target]",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest"
+        ]));
+
+        Assert.Contains("pull_request_target", workflow.Triggers);
+    }
+
+    [Fact]
+    public void Permission_value_followed_by_a_comment_is_still_a_grant()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on: push",
+            "permissions:",
+            "  contents: write # needed to push tags",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest"
+        ]));
+
+        Assert.Single(new ExcessivePermissionsRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Malformed_yaml_is_rejected_rather_than_partially_analyzed()
+    {
+        // Returning findings from a document the parser could not read would
+        // omit whatever the malformed region contained, which is the failure
+        // mode a deterministic-first analyser cannot afford.
+        WorkflowParseResult result = _parser.Parse(new WorkflowDocument(
+            "workflow.yml",
+            string.Join('\n',
+            [
+                "name: Build",
+                "on: push",
+                "jobs:",
+                "  build:",
+                "   runs-on: ubuntu-latest",
+                "     timeout-minutes: 15"
+            ])));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains("not well formed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Inputs_are_attributed_when_name_precedes_uses()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Review",
+            "on:",
+            "  pull_request_target:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - name: Check out the contributor's branch",
+            "        uses: actions/checkout@0000000000000000000000000000000000000000",
+            "        with:",
+            "          persist-credentials: false",
+            "          ref: ${{ github.event.pull_request.head.sha }}"
+        ]));
+
+        // persist-credentials is honoured, so only the untrusted checkout fires.
+        Assert.Empty(new PersistedCredentialsRule().Evaluate(workflow));
+
+        WorkflowFinding finding = Assert.Single(
+            new UntrustedCheckoutRule().Evaluate(workflow));
+
+        Assert.Equal(13, finding.LineNumber);
     }
 
     private ParsedWorkflow Parse(string content)

@@ -19,6 +19,34 @@
 - Rewrote `SECURITY.md` to describe the current trust boundaries.
 - Removed temporary implementation notes from the repository root.
 
+### Detection
+
+- Added GHA005, reporting attacker-controllable workflow expressions
+  interpolated into `run:` and `script:` bodies. Contexts that require
+  repository write access to influence are excluded, and expressions in `if:`
+  and `with:` are not reported, because those are evaluated rather than
+  substituted into a shell.
+- Added GHA006, reporting `actions/checkout` steps that leave the job token in
+  `.git/config` for every later step to read.
+- Added GHA007, reporting the pairing that makes `pull_request_target`
+  exploitable rather than merely risky: a privileged trigger together with an
+  explicit checkout of the pull request's own head.
+- Read workflow structure with a real YAML parser, so flow mappings, quoted
+  keys, anchors and the YAML 1.1 treatment of `on` as a boolean resolve the way
+  GitHub resolves them. Workflows the parser cannot read are now reported as
+  invalid instead of being partially analysed.
+
+### Fixed
+
+- Serialized finding severity as its name rather than its integer value. The
+  client compares that field to severity names, so the numeric form produced an
+  empty findings list and a "Low" risk label on workflows that contained
+  high-severity findings.
+- Made the exported patch applicable. The diff named `a/workflow.yml`
+  regardless of the workflow, and counted a phantom trailing line for any file
+  ending in a newline, so `git apply` rejected it. Both are now covered by tests
+  that apply the patch with git and compare the result.
+
 ### Build and release
 
 - Validated branch work through its pull request rather than on both the branch

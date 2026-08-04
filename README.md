@@ -18,7 +18,9 @@ Many security demos let an LLM decide what is vulnerable. DevSecOps Sentinel use
 ## Capabilities
 
 - Analyze embedded scenarios or real allowlisted GitHub workflows
-- Detect unpinned actions, excessive permissions, missing timeouts, and unsafe `pull_request_target` use
+- Detect unpinned actions, excessive permissions, missing timeouts, unsafe
+  `pull_request_target` use, script injection through untrusted expressions,
+  persisted checkout credentials, and privileged checkout of pull-request code
 - Generate deterministic remediation previews and unified diffs
 - Re-analyze proposed YAML and report resolved and remaining findings
 - Calculate before/after risk reduction

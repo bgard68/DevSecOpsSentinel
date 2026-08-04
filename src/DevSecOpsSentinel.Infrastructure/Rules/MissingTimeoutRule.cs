@@ -9,15 +9,20 @@ public sealed class MissingTimeoutRule : IWorkflowSecurityRule
     public string Title => "Job does not define a timeout";
     public WorkflowSeverity Severity => WorkflowSeverity.Medium;
 
-    public IReadOnlyList<WorkflowFinding> Evaluate(ParsedWorkflow workflow) => workflow.Jobs
-        .Where(job => job.TimeoutLine is null)
-        .Select(job => new WorkflowFinding(
-            RuleId,
-            Severity,
-            Title,
-            $"Job '{job.Name}' can run until the platform limit is reached.",
-            job.DeclarationLine,
-            "Add an explicit timeout-minutes value appropriate for the job.",
-            true))
-        .ToArray();
+    // Jobs come from the document structure, so a job keyed with quotes, defined
+    // through an anchor, or written in flow style is still recognised as a job,
+    // and a nested mapping that merely looks like one at the same indentation is
+    // not.
+    public IReadOnlyList<WorkflowFinding> Evaluate(ParsedWorkflow workflow) =>
+        workflow.Structure.Jobs
+            .Where(job => job.TimeoutLine is null)
+            .Select(job => new WorkflowFinding(
+                RuleId,
+                Severity,
+                Title,
+                $"Job '{job.Name}' can run until the platform limit is reached.",
+                job.Line,
+                "Add an explicit timeout-minutes value appropriate for the job.",
+                true))
+            .ToArray();
 }

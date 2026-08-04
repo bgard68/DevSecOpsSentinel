@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using DevSecOpsSentinel.Api;
 using DevSecOpsSentinel.Api.Operational;
@@ -26,6 +27,20 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.MaxRequestBodySize = 256 * 1024;
+});
+
+/*
+ * WorkflowSeverity is a domain enum. Without this converter System.Text.Json
+ * emits its integer value, so the API returned "severity": 3 while the React
+ * client, the JSON export and every other consumer expect "High". The client
+ * filters and sorts findings by comparing that field to severity names, so the
+ * numeric form silently produced an empty findings list and a "Low" risk label
+ * on workflows that in fact contained high-severity findings.
+ */
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(
+        new JsonStringEnumConverter());
 });
 
 builder.Services.AddProblemDetails();
@@ -108,6 +123,9 @@ builder.Services.AddSingleton<IWorkflowSecurityRule, UnpinnedActionRule>();
 builder.Services.AddSingleton<IWorkflowSecurityRule, ExcessivePermissionsRule>();
 builder.Services.AddSingleton<IWorkflowSecurityRule, MissingTimeoutRule>();
 builder.Services.AddSingleton<IWorkflowSecurityRule, UnsafePullRequestTargetRule>();
+builder.Services.AddSingleton<IWorkflowSecurityRule, ScriptInjectionRule>();
+builder.Services.AddSingleton<IWorkflowSecurityRule, PersistedCredentialsRule>();
+builder.Services.AddSingleton<IWorkflowSecurityRule, UntrustedCheckoutRule>();
 builder.Services.AddSingleton<IWorkflowPatchGenerator, WorkflowPatchGenerator>();
 builder.Services.AddSingleton<IWorkflowAnalysisService, WorkflowAnalysisService>();
 builder.Services.AddSingleton<IRemediationReportService, RemediationReportService>();
