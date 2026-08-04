@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Documentation
+
+- Restructured the documentation. The root now holds only what GitHub surfaces
+  specially — README, SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, LICENSE — plus the
+  changelog. Everything else moved under `docs/`, indexed by `docs/README.md`.
+  The README had grown to 224 lines doing five jobs at once; it is now a summary
+  that routes onward.
+- Added `docs/engineering-log.md`, recording eleven defects found after the
+  project was first considered complete: what was wrong, how each surfaced, what
+  changed, and what prevents recurrence. Four patterns run through them, the
+  sharpest being that a test which cannot fail proves nothing.
+- Added `docs/scripts.md`, explaining every script and why it exists, including
+  the failures that bought several of their details.
+- Added `docs/getting-started.md` and `docs/configuration.md`, covering setup,
+  every setting, Mock and Live behaviour, and where credentials belong in each
+  environment.
+- Added `docs/architecture/program-flow.md` and `docs/architecture/rules.md`,
+  describing what happens on a request across both halves, and all eleven rules.
+- Added `docs/ci-cd.md`, describing the four workflows, path-selective builds and
+  the release sequence.
+- Rewrote `docs/architecture/README.md`, which still described four rules and
+  predated the move to structural YAML parsing.
+- Widened the required-file list in `verify-release-package.ps1` to match the new
+  layout, so a document being moved or deleted fails the release rather than
+  going unnoticed.
+
 ### Fixed
 
 - Sanitised request-supplied values before they reach a log entry. The request

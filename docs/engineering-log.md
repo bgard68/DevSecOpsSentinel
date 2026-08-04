@@ -1,0 +1,338 @@
+# Engineering log
+
+A record of the defects found in this project after it was first considered
+complete, how each was found, and what now prevents it recurring.
+
+It is kept because the defects are more instructive than the features. Every one
+of them passed a build, passed a test suite, and shipped. Several were visible in
+the product's own documentation without anyone noticing.
+
+Each entry follows the same shape: what was wrong, how it surfaced, what changed,
+and what would catch it next time.
+
+---
+
+## 1. Findings were invisible in the user interface
+
+**What was wrong.** `WorkflowSeverity` is a domain enum. Without a converter,
+`System.Text.Json` serialises it as its integer value, so the API returned
+`"severity": 3`. The React client compares that field to severity names —
+`finding.severity === 'Critical'` — and sorts findings by filtering against a
+list of those names.
+
+Nothing matched. The findings list rendered empty on a workflow that had
+findings, the risk label read "Low" on a workflow containing high-severity ones,
+and the severity counters read zero.
+
+**How it was found.** By accident, while writing an unrelated integration test.
+The test deserialised a response into a record with a `string Severity` and
+failed with *"Cannot get the value of a token type 'Number' as a string"*.
+
+**Why nothing caught it.** No test asserted the shape of a response. The tests
+asserted status codes and substrings, and `Assert.Contains("GHA001", body)`
+passes whether severity is a number or a name.
+
+The symptom was also visible in a screenshot committed to the repository and
+displayed in the README: a workflow with one High finding, captioned as working,
+showing **Risk level Low, 0 critical, 0 high**.
+
+**What changed.** A `JsonStringEnumConverter` is registered for the API and for
+the JSON export. A test asserts the response contains `"severity":"High"` and
+does not contain `"severity":3`.
+
+**What prevents recurrence.** Assert on the wire format, not on the object you
+deserialised into. A test that parses a response with your own types cannot see a
+contract break, because both sides move together.
+
+---
+
+## 2. The exported patch could not be applied
+
+**What was wrong.** The remediation patch is served as `text/x-diff` with a
+`.patch` filename, so the implied contract is that `git apply` accepts it. It
+did not, for two independent reasons:
+
+- The diff headers named `a/workflow.yml` and `b/workflow.yml` unconditionally,
+  so applying a patch for any other file failed with *"No such file or
+  directory"*.
+- Content was split on `\n` without accounting for the terminating newline. A
+  file ending in a newline has N lines but splits into N + 1 elements, the last
+  empty, so the hunk claimed a trailing blank line the file did not contain and
+  git rejected it with *"patch does not apply"*.
+
+**How it was found.** By writing a test that applies the exported patch with git
+in a temporary repository and compares the result to the proposed content. It
+failed on the first run, then failed again differently after the first fix.
+
+**Why nothing caught it.** The existing assertion was
+`Assert.StartsWith("@@ -1,", report.UnifiedDiff[2])`. It checked that a hunk
+header was present, which is not the same as checking that the diff is valid.
+The defect survived several reviews because the shape looked right.
+
+**What changed.** Headers carry the document's own file name. The terminator is
+tracked and re-expressed as the standard `\ No newline at end of file` marker
+when a side lacks it. Empty content produces a `0,0` range. Two tests apply the
+patch with git, covering terminated and unterminated files.
+
+**What prevents recurrence.** When output claims to be a standard format, test it
+with the tool that consumes that format. Asserting on substrings of the output
+tests your idea of the format, not the format.
+
+---
+
+## 3. The SARIF export was not valid SARIF
+
+**What was wrong.** Two violations of the specification, in the feature described
+as *"SARIF for security tooling"*:
+
+- `level` carried severity names — `critical`, `high`, `medium`. The
+  specification defines it as a closed enumeration: `none`, `note`, `warning`,
+  `error`.
+- The schema key was emitted as `schema` rather than `$schema`, because `$schema`
+  is not a legal C# identifier and the export was built from an anonymous type.
+
+Every document the tool exported would have been rejected by a SARIF consumer,
+including GitHub code scanning.
+
+**How it was found.** By reading the specification while auditing the export
+layer, prompted by the observation that its only test was
+`Assert.Contains("2.1.0", body)`.
+
+**Why nothing caught it.** That assertion passes on any document containing the
+string `2.1.0`, including an invalid one.
+
+**What changed.** Severities map onto the specified levels. The original severity
+travels as `security-severity` on the rule, which is what GitHub code scanning
+reads to bucket findings. A rule table is emitted so `ruleId` resolves through
+`ruleIndex`. The export is built from records with explicit
+`JsonPropertyName` attributes, so `$schema` is expressible.
+
+A conformance test validates the schema key, every level against the enumeration,
+rule and result index agreement, and that `security-severity` parses as a number.
+
+**What prevents recurrence.** A test that asserts a format is present is not a
+test that the format is correct. Validate against the specification's own rules.
+
+---
+
+## 4. The evidence exports omitted the evidence
+
+**What was wrong.** The Markdown and HTML remediation reports listed a rule
+identifier, a title, and whether the finding was resolved. Severity, line number,
+description and recommendation were all present on the model and none reached the
+page.
+
+These are the documents the product describes as exportable security evidence.
+They could not be used to triage or locate anything they reported.
+
+**How it was found.** By reading the export code while fixing the SARIF defect.
+
+**Why nothing caught it.** No test asserted on their content. The endpoints were
+covered only by status-code checks.
+
+**What changed.** Both exports render a findings table plus per-finding detail,
+with severity, line, description and recommendation. The HTML escapes all of it.
+Tests assert the severity column and the recommendation text are present, and
+that no script tag survives.
+
+---
+
+## 5. The request rate limit was not configurable
+
+**What was wrong.** `Operational:WorkflowRequestLimitPerMinute` was documented as
+configuration. It was read into a local variable while `Program.cs` executed, so
+configuration supplied later in host building never reached the limiter. The
+value was fixed at whatever the base configuration said.
+
+**How it was found.** By trying to write a test for the 429 response. The test
+set the limit to two, fired three requests, and received three successes. The
+override was being ignored.
+
+**Why nothing caught it.** Nothing tested the rejection path, and with the
+production default of thirty per minute it could not be reached without firing
+thirty-one requests.
+
+This was the second occurrence of the same mistake. The API security options had
+the same defect and were corrected earlier, with the reason written down in a
+file that is now `docs/history/C6-CONFIG-BINDING-FIX.md`. The lesson had been
+recorded and not generalised.
+
+**What changed.** The budget is bound as `OperationalOptions` and read through
+`IOptionsMonitor` inside the rate-limit partition factory, matching the
+correction already applied to the security options. A test sets the limit to two
+and asserts the third request is rejected.
+
+**What prevents recurrence.** Configuration read during startup is frozen at
+startup. If a setting is documented as configurable, a test must change it — and
+that test is what proves the wiring, not the presence of the setting.
+
+---
+
+## 6. Version numbers disagreed with each other
+
+**What was wrong.** The product version appeared as a literal in five places and
+had drifted to three different values:
+
+| Location | Reported | Actual |
+| --- | --- | --- |
+| `/api/health` | 1.0.0 | 1.0.1 |
+| SARIF tool descriptor | 1.0.0 | 1.0.1 |
+| Two GitHub `User-Agent` headers | 0.4.0 | 1.0.1 |
+| Application header | v1.0 | 1.0.1 |
+
+The SARIF descriptor is the one that matters most: it travels inside exported
+security evidence, where the version of the tool that produced a finding is part
+of the record.
+
+Separately, the `v1.0.1` tag pointed at a commit whose version markers read
+`1.0.0`, because the tag was cut before the version was bumped.
+
+**How it was found.** By grepping for version literals while investigating why a
+screenshot showed an old version in the application header.
+
+**What changed.** `ProductInfo` reads the informational version from the
+assembly, so `Directory.Build.props` is the only place a version is written on
+the server side. The client reads `package.json` through a Vite define.
+`verify-release-package.ps1` holds `Directory.Build.props`, `package.json`,
+`package-lock.json` and any release tag equal, and CI runs it on tag pushes.
+
+**What prevents recurrence.** One source, derived everywhere else. A version
+written in two places is a version that will eventually disagree with itself.
+
+---
+
+## 7. Rules matched text rather than structure
+
+**What was wrong.** The permissions rule matched any line ending in `: write`
+across the whole file. A comment reading `# contents: write` produced a finding.
+So did an unrelated input such as `mode: write` under a step's `with:` block.
+
+The parser was line-oriented throughout, which also meant `permissions:
+{contents: write}` in flow style was missed entirely, and a quoted `'on':` key —
+written that way precisely to stop YAML 1.1 resolving `on` to the boolean `true`
+— was invisible to a prefix match.
+
+**How it was found.** By reading the rules against the YAML specification rather
+than against the examples they were written for.
+
+**What changed.** Document structure is read with a real YAML parser, and the
+structural rules read that. The line model remains for content inside block
+scalars, which YAML models as a single opaque scalar, and for line-indexed
+patching. Structure answers questions about relationships; lines answer questions
+about content.
+
+**What prevents recurrence.** A security tool that reports findings has to be
+right about what it is reading. Indentation arithmetic agrees with YAML often
+enough to look correct and fails quietly when it does not.
+
+---
+
+## 8. The analyser did not detect script injection
+
+**What was wrong.** Nothing detected `${{ github.event.* }}` interpolated into a
+`run:` body — the most exploited GitHub Actions vulnerability class in the wild.
+
+**How it was found.** By comparing the rule set against the actual GitHub Actions
+threat landscape rather than against itself.
+
+**What changed.** GHA005 reports attacker-controllable expressions in script
+bodies. Adding it required a parser change: block scalar content is deliberately
+withheld from the line model, because treating shell as YAML caused the false
+positives described above. Script bodies are now captured separately, so the
+existing rules are unaffected.
+
+Three more followed from the same exercise: GHA006 for persisted checkout
+credentials, GHA007 for a privileged trigger checking out pull-request code, and
+later GHA008 to GHA011.
+
+**A correction worth recording.** It was initially claimed that this rule would
+have flagged a pattern in this repository's own CI. It would not. The expressions
+there were `github.sha` and two commit SHAs — GitHub-controlled and not
+attacker-settable. What was present was the pattern with safe values, not an
+exploitable injection, and the rule correctly stays quiet. Precision is the point
+of a deterministic analyser, and an overstated claim about one's own tool is
+worse than a missing rule.
+
+---
+
+## 9. The repository protection gate checked nothing
+
+**What was wrong.** `check-repository.ps1` iterated `git ls-files 2>$null` to
+find forbidden files. The project was not a git repository at the time, so the
+command produced nothing, the loop found no violations, and the script printed
+**"Repository protection check passed."** in green.
+
+The gate whose entire purpose was proving no secrets were tracked had never
+examined anything.
+
+**How it was found.** By running it and noticing it passed instantly on a
+directory with no `.git` in it.
+
+**What changed.** The script fails if it is not inside a git repository, and
+fails if no tracked files are found.
+
+**What prevents recurrence.** A check that cannot fail is not a check. When a
+gate passes, confirm it passed because the condition held, not because the
+condition could not be evaluated.
+
+---
+
+## 10. Log entries could be forged by a request
+
+**What was wrong.** The request path is chosen by the caller and reached three
+loggers verbatim. A path containing a carriage return or line feed splits one log
+entry into several, so a caller could fabricate lines that appear to have been
+emitted by the application.
+
+**How it was found.** By CodeQL, on its first run against the repository, once
+the project was public and code scanning became available.
+
+**What changed.** Request-supplied values are sanitised before logging. Control
+characters are replaced rather than removed, so a request that attempted the
+injection remains visible as having done so, and long values are truncated.
+
+**What prevents recurrence.** Structured logging does not neutralise input on its
+own, because most sinks render the message template into a single line of text.
+
+---
+
+## 11. The smoke suite protected nothing
+
+**What was wrong.** Twenty-five end-to-end checks existed and ran only when
+someone chose to run them. The release script ended by printing *"start the API
+before running smoke tests"*.
+
+**What changed.** The script starts and stops the API itself, runs as part of the
+local gate, and runs in CI. It forces Mock mode and disables GitHub so it never
+spends credit or reaches the network.
+
+**Why it is worth running despite overlap.** Most of what it asserts is also
+asserted by the integration tests. What is not duplicated is that the application
+starts. The integration tests boot it through `WebApplicationFactory` with the
+environment set to Testing and configuration supplied in memory, so nothing in
+them exercises `appsettings.json`, `ValidateOnStart`, the scenario files being
+copied to the output directory, or HTTPS redirection.
+
+Every one of those tests can pass on an application that will not run.
+
+---
+
+## Patterns
+
+Reading the eleven together, four things recur.
+
+**A test that cannot fail proves nothing.** The protection gate that ran against
+no files, the SARIF assertion that matched any document containing `2.1.0`, the
+rate limit that could not be exercised. Each was counted as coverage.
+
+**Assert on the contract, not on your own types.** The severity defect survived
+because tests deserialised responses using the same records the server
+serialised. Both sides moved together and the break was invisible.
+
+**Output claiming to be a standard format must be checked by that format's
+tools.** The patch and SARIF defects were both found this way and neither would
+have been found otherwise.
+
+**A lesson written down is not a lesson generalised.** The configuration binding
+mistake was diagnosed, fixed, and documented — then repeated in a second place
+that nobody thought to check.
