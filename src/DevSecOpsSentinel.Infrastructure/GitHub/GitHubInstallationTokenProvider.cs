@@ -9,7 +9,8 @@ namespace DevSecOpsSentinel.Infrastructure.GitHub;
 public sealed class GitHubInstallationTokenProvider(
     IHttpClientFactory httpClientFactory,
     GitHubOptions options,
-    GitHubAppJwtFactory jwtFactory) : IGitHubInstallationTokenProvider
+    GitHubAppJwtFactory jwtFactory,
+    IGitHubPrivateKeySource privateKeySource) : IGitHubInstallationTokenProvider
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private string? _cachedToken;
@@ -23,10 +24,10 @@ public sealed class GitHubInstallationTokenProvider(
                 "GitHub integration is not configured.");
         }
 
-        if (!File.Exists(options.PrivateKeyPath))
+        if (!privateKeySource.IsAvailable)
         {
             throw new InvalidOperationException(
-                "The configured GitHub App private key file is unavailable.");
+                "No GitHub App private key is available.");
         }
 
         if (CanUseCachedToken())

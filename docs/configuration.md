@@ -81,7 +81,8 @@ account.
 | --- | --- | --- |
 | `Enabled` | `false` | |
 | `AppId`, `InstallationId` | — | Numeric identifiers |
-| `PrivateKeyPath` | — | Path to the App private key. Outside the repository |
+| `PrivateKey` | — | The key material itself, PEM or base64-encoded PEM. What a deployment setting or Key Vault reference supplies. Takes precedence over the path |
+| `PrivateKeyPath` | — | Path to the App private key. Convenient locally, unusable on a hosted platform |
 | `AllowedRepositories` | empty | `owner/name` entries |
 | `ResolveActionReferences` | `false` | See below |
 
@@ -137,6 +138,9 @@ GitHub__Enabled=false
 
 Secrets belong in App Service application settings or Key Vault. Not in
 `appsettings.json`, not in the client bundle, not in a tracked file.
+
+Full deployment guidance, including a Key Vault in another resource group, is in
+[deployment/azure.md](deployment/azure.md).
 
 ---
 

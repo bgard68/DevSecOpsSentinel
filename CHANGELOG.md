@@ -1,5 +1,52 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- The GitHub App private key can be supplied as configuration, as PEM text or
+  base64-encoded PEM. Reading it only from a filesystem path is what prevented
+  this application being deployed: App Service settings and Key Vault references
+  deliver values, not files. `GitHub:PrivateKeyPath` remains for local use, and
+  configuration wins when both are present so a stale file on a host cannot serve
+  a deployment.
+- Documented what the publish artifact contains, and that the deployment must be
+  that artifact rather than the working tree. Deploying the repository would push
+  `node_modules`, tests and history into the site directory; the artifact is
+  roughly 8 MB across 29 files and carries no credentials. The API serves no
+  static content, so the client cannot collide with it.
+- Added `docs/deployment/azure.md`, covering App Service and Static Web Apps,
+  Key Vault references including a vault in another resource group, OIDC for the
+  deployment identity, and what a degraded integration looks like.
+
+### Changed
+
+- Readiness answers whether the instance can serve requests, rather than failing
+  when an optional integration is misconfigured. Deterministic analysis depends
+  on nothing external, so reporting the whole application as unready over GitHub
+  or OpenAI would take a healthy instance out of rotation for a feature most
+  requests never touch. Integration state is reported in the response body and on
+  the status endpoints instead.
+- The client now says **why** the model was not used. It previously showed
+  "Deterministic fallback" with no way to distinguish a missing key from a
+  timeout from a response that failed validation, even though the reason was
+  already on the wire.
+- The application warns at startup when `AllowedHosts` or
+  `Security:AllowedOrigins` still name localhost outside Development. Host
+  filtering rejects every request with a 400 that explains nothing, and blocked
+  CORS looks like a broken API rather than a setting. It warns rather than
+  refusing to start, because a wrong host is fixed by editing one setting whereas
+  an application that will not start has to be diagnosed through deployment logs.
+
+### Fixed
+
+- The private key is read once rather than on every installation-token refresh.
+- The private key tests generate a key at run time rather than embedding one. A
+  literal PEM in source is indistinguishable from a leaked key to a scanner, and
+  the pre-commit hook correctly refused the first attempt. Generating it makes
+  the test stronger as well, because the value is a real key and the import is
+  exercised rather than a shape being matched.
+
 ## 1.2.3 — 2026-08-04
 
 ### Documentation

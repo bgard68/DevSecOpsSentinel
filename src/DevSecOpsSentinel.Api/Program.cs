@@ -170,6 +170,10 @@ builder.Services.AddHttpClient("GitHub", client =>
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 
+builder.Services.AddSingleton<
+    IGitHubPrivateKeySource,
+    GitHubPrivateKeySource>();
+
 builder.Services.AddSingleton<GitHubAppJwtFactory>();
 
 builder.Services.AddSingleton<
@@ -185,6 +189,56 @@ builder.Services.AddSingleton<
     GitHubActionReferenceResolver>();
 
 WebApplication app = builder.Build();
+
+/*
+ * AllowedHosts ships as localhost only, which is right for development and
+ * silently wrong once deployed: host filtering rejects every request with a 400
+ * and nothing in the response explains why. The symptom looks like a routing or
+ * proxy fault rather than a setting.
+ *
+ * This warns rather than refuses to start. A wrong host is fixed by editing one
+ * setting, whereas an application that will not start has to be diagnosed
+ * through deployment logs — the worse of the two failures. The same applies to
+ * CORS origins, which fail as blocked browser requests with a working API
+ * behind them.
+ */
+if (!app.Environment.IsDevelopment() &&
+    !app.Environment.IsEnvironment("Testing"))
+{
+    ILogger startupLogger = app.Services
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("DevSecOpsSentinel.Startup");
+
+    string allowedHosts = app.Configuration["AllowedHosts"] ?? string.Empty;
+
+    if (allowedHosts.Contains("localhost", StringComparison.OrdinalIgnoreCase) ||
+        allowedHosts.Contains("127.0.0.1", StringComparison.Ordinal))
+    {
+        startupLogger.LogWarning(
+            "AllowedHosts is {AllowedHosts} in the {Environment} environment. " +
+            "Requests arriving on any other host will be rejected with 400 " +
+            "before reaching a route.",
+            allowedHosts,
+            app.Environment.EnvironmentName);
+    }
+
+    ApiSecurityOptions startupSecurity = app.Services
+        .GetRequiredService<IOptions<ApiSecurityOptions>>().Value;
+
+    if (startupSecurity.AllowedOrigins.Length == 0 ||
+        startupSecurity.AllowedOrigins.Any(origin =>
+            origin.Contains("localhost", StringComparison.OrdinalIgnoreCase)))
+    {
+        startupLogger.LogWarning(
+            "Security:AllowedOrigins is {Origins} in the {Environment} " +
+            "environment. A browser client served from any other origin will be " +
+            "blocked by CORS.",
+            startupSecurity.AllowedOrigins.Length == 0
+                ? "empty"
+                : string.Join(", ", startupSecurity.AllowedOrigins),
+            app.Environment.EnvironmentName);
+    }
+}
 
 if (app.Environment.IsDevelopment() ||
     app.Environment.IsEnvironment("Testing"))
@@ -255,31 +309,55 @@ app.MapGet("/api/health/live", () => Results.Ok(new
 .CacheOutput(policy =>
     policy.Expire(TimeSpan.FromSeconds(10)));
 
-app.MapGet("/api/health/ready", () =>
+/*
+ * Readiness answers one question: can this instance serve requests?
+ *
+ * Deterministic analysis is the product and depends on nothing external, so the
+ * answer is yes whenever the process started. GitHub and OpenAI are optional
+ * integrations, and reporting the whole application as unready because one of
+ * them is misconfigured would take a working instance out of rotation over a
+ * feature most requests never touch.
+ *
+ * Their state is reported here so a misconfiguration is visible, and separately
+ * on /api/github/status and /api/ai/status, but a degraded integration does not
+ * make the application unready. What it must never do is silently present
+ * simulated results as real ones — an integration configured for live use and
+ * unable to reach its service reports exactly that.
+ */
+app.MapGet("/api/health/ready", (IGitHubPrivateKeySource privateKeySource) =>
 {
-    bool privateKeyAvailable =
-        !gitHubOptions.Enabled ||
-        (!string.IsNullOrWhiteSpace(gitHubOptions.PrivateKeyPath) &&
-         File.Exists(gitHubOptions.PrivateKeyPath));
+    bool gitHubDegraded =
+        gitHubOptions.Enabled &&
+        (!gitHubOptions.IsConfigured || !privateKeySource.IsAvailable);
 
-    bool ready =
-        !gitHubOptions.Enabled ||
-        (gitHubOptions.IsConfigured && privateKeyAvailable);
+    bool openAiDegraded =
+        string.Equals(openAiOptions.Mode, "Live", StringComparison.OrdinalIgnoreCase) &&
+        string.IsNullOrWhiteSpace(openAiOptions.ApiKey);
 
-    return ready
-        ? Results.Ok(new
+    return Results.Ok(new
+    {
+        status = "Ready",
+        deterministicAnalysis = "Available",
+        gitHub = new
         {
-            status = "Ready",
-            gitHubMode = gitHubOptions.Enabled
-                ? "ReadOnly"
-                : "Disabled",
-            timestampUtc = DateTimeOffset.UtcNow
-        })
-        : Results.Problem(
-            statusCode: StatusCodes.Status503ServiceUnavailable,
-            title: "Application is not ready",
-            detail:
-                "GitHub configuration or private-key access is incomplete.");
+            state = !gitHubOptions.Enabled
+                ? "Disabled"
+                : gitHubDegraded ? "Unavailable" : "ReadOnly",
+            detail = !gitHubOptions.Enabled
+                ? "GitHub integration is disabled."
+                : gitHubDegraded
+                    ? "GitHub is enabled but its configuration or private key is incomplete."
+                    : $"Connected using a private key supplied by {privateKeySource.Description}.",
+        },
+        ai = new
+        {
+            state = openAiDegraded ? "Unavailable" : openAiOptions.Mode,
+            detail = openAiDegraded
+                ? "OpenAI is configured for live mode but no API key is available. Explanations fall back to deterministic text and are labelled as such."
+                : $"OpenAI is in {openAiOptions.Mode} mode."
+        },
+        timestampUtc = DateTimeOffset.UtcNow
+    });
 });
 
 app.MapGet("/api/ai/status", () =>

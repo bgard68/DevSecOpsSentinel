@@ -9,8 +9,7 @@ const workflow = { name: 'safe.yml', path: '.github/workflows/safe.yml', sha: '1
 const remediation = { fileName: 'sample.yml', originalAnalysis: analysis, proposedAnalysis: analysis, changes: [], unifiedDiff: ['--- original', '+++ proposed'], originalRiskScore: 0, proposedRiskScore: 0, riskReductionPercent: 0, patchValid: true, resolvedFindingCount: 0, remainingFindingCount: 0 };
 const source = { owner: repo.owner, repository: repo.name, defaultBranch: 'main', path: workflow.path, sha: workflow.sha, content: 'name: Safe\non:\n  push:\n', htmlUrl: workflow.htmlUrl, retrievedAtUtc: '2026-08-03T00:00:00Z' };
 
-beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+async function respond(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const url = String(input);
     if (url === '/api/security/status') return Response.json({ required: false, headerName: 'X-API-Key', sessionOnlyBrowserKey: true });
     if (url === '/api/scenarios') return Response.json([scenario]);
@@ -25,7 +24,10 @@ beforeEach(() => {
     if (url.endsWith('/analyze') && init?.method === 'POST') return Response.json({ source, result: analysis });
     if (url === '/api/workflows/explain' && init?.method === 'POST') return Response.json({ analysis, sensitiveContentRedacted: false, explanation: { summary: 'Mock explanation', findings: [], recommendedNextStep: 'Review.', limitations: [], generatedByAi: true, mode: 'Mock', fallbackReason: null } });
     return new Response('{}', { status: 404 });
-  }));
+}
+
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn(respond));
 });
 
 describe('App', () => {
@@ -41,6 +43,34 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Remediation plan' }));
     expect(screen.getByText('Risk reduction plan')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Export SARIF' })).toBeInTheDocument();
+  });
+
+  it('says why the model was not used when it was not', async () => {
+    // A degraded live integration must be visible. Without this the panel reads
+    // "Deterministic fallback" and gives no way to tell a missing key from a
+    // timeout from a response that failed validation.
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === '/api/workflows/explain' && init?.method === 'POST') {
+        return Response.json({
+          analysis,
+          sensitiveContentRedacted: false,
+          explanation: {
+            summary: 'Deterministic summary', findings: [], recommendedNextStep: 'Review.',
+            limitations: [], generatedByAi: false, mode: 'Live',
+            fallbackReason: 'OpenAI is configured for live mode, but no API key is available.',
+          },
+        });
+      }
+      return respond(input, init);
+    }));
+
+    render(<App />); await waitFor(() => expect(screen.getByDisplayValue('sample.yml')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('checkbox', { name: /include ai explanation/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Analyze workflow' }));
+
+    expect(await screen.findByText(/no API key is available/i)).toBeInTheDocument();
+    expect(screen.getByText(/The model was not used/i)).toBeInTheDocument();
   });
 
   it('renders the AI advisor when explicitly selected', async () => {

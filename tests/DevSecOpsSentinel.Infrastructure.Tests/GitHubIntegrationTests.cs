@@ -29,7 +29,9 @@ public sealed class GitHubIntegrationTests
                 AllowedRepositories = ["bgard68/DevSecOpsSentinel-Sandbox"]
             };
 
-            string token = new GitHubAppJwtFactory(options)
+            string token = new GitHubAppJwtFactory(
+                options,
+                new GitHubPrivateKeySource(options))
                 .CreateToken(DateTimeOffset.FromUnixTimeSeconds(1_800_000_000));
 
             string[] parts = token.Split('.');
