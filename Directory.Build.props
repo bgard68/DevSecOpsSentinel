@@ -1,5 +1,13 @@
 <Project>
   <PropertyGroup>
+    <!--
+      Version is the single source of truth for the release. scripts/verify-release-package.ps1
+      reads it and requires package.json, package-lock.json and any release tag to match.
+
+      AssemblyVersion is deliberately held at the major.minor baseline so that patch
+      releases keep a stable binding identity. Do not raise it in step with Version;
+      FileVersion carries the precise build number instead.
+    -->
     <Version>1.0.1</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.1.0</FileVersion>

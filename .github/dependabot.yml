@@ -43,6 +43,33 @@ updates:
           - "patch"
           - "minor"
 
+    #
+    # Major versions of the build and test toolchain are coupled to each other
+    # through peer dependencies, so Dependabot cannot raise them one at a time:
+    # @vitejs/plugin-react 6 requires vite 8, which in turn requires a matching
+    # vitest major. Individual major pull requests are therefore unmergeable by
+    # construction and only consume Actions minutes.
+    #
+    # These majors are upgraded deliberately, as one coordinated change.
+    # Application dependencies such as react are intentionally not listed here
+    # and continue to receive major-version pull requests.
+    #
+    ignore:
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "jsdom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@testing-library/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@testing-library/jest-dom"
+        update-types: ["version-update:semver-major"]
+
   #
   # GitHub Actions
   #
