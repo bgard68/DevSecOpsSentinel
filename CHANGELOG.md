@@ -2,6 +2,8 @@
 
 ### Security and reliability
 
+- Added full-history Gitleaks CI scanning with SHA-pinned actions.
+- Added repository-managed Gitleaks configuration and local pre-commit protection.
 - Made GitHub action tag-to-SHA resolution an explicit opt-in.
 - Removed live GitHub dependencies from integration tests.
 - Added session-only browser API-key entry and authenticated smoke-test support.
