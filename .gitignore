@@ -156,3 +156,7 @@ cache/
 *.sqlite3
 local-data/
 local-storage/
+
+# Secret-scanning reports
+gitleaks-report.*
+.gitleaks-cache/

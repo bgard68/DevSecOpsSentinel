@@ -58,6 +58,17 @@ sensitive YAML mappings, shell assignments, and command-line secret arguments
 before workflow excerpts are sent to OpenAI. Sanitization is defense in depth;
 operators must still avoid submitting real production secrets.
 
+## Secret scanning
+
+Gitleaks scans repository history in CI and through an optional local
+pre-commit hook. The repository-managed configuration extends Gitleaks'
+maintained default rules. A clean scan reduces risk but does not prove that a
+credential has never been exposed.
+
+Local hooks are defense in depth and can be bypassed. CI scanning is therefore
+required as the independent repository gate. See
+`docs/security/gitleaks.md` for setup and response procedures.
+
 ## Credential rotation
 
 If a secret is exposed:

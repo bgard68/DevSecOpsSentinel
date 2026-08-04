@@ -1,0 +1,16 @@
+title = "DevSecOps Sentinel Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated and vendored content excluded from secret scanning"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)bin/''',
+  '''(^|/)obj/''',
+  '''(^|/)dist/''',
+  '''(^|/)TestResults/''',
+  '''(^|/)coverage/''',
+  '''(^|/)docs/assets/screenshots/'''
+]

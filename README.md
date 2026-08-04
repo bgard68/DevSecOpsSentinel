@@ -119,6 +119,15 @@ Detailed setup:
 
 ## Validation
 
+Install local Gitleaks pre-commit protection:
+
+```powershell
+.\scripts\install-gitleaks-precommit.ps1
+```
+
+Secret-scanning guidance is documented in
+[`docs/security/gitleaks.md`](docs/security/gitleaks.md).
+
 Run all local release gates:
 
 ```powershell
