@@ -124,6 +124,8 @@ builder.Services.AddSingleton<IWorkflowSecurityRule, ExcessivePermissionsRule>()
 builder.Services.AddSingleton<IWorkflowSecurityRule, MissingTimeoutRule>();
 builder.Services.AddSingleton<IWorkflowSecurityRule, UnsafePullRequestTargetRule>();
 builder.Services.AddSingleton<IWorkflowSecurityRule, ScriptInjectionRule>();
+builder.Services.AddSingleton<IWorkflowSecurityRule, PersistedCredentialsRule>();
+builder.Services.AddSingleton<IWorkflowSecurityRule, UntrustedCheckoutRule>();
 builder.Services.AddSingleton<IWorkflowPatchGenerator, WorkflowPatchGenerator>();
 builder.Services.AddSingleton<IWorkflowAnalysisService, WorkflowAnalysisService>();
 builder.Services.AddSingleton<IRemediationReportService, RemediationReportService>();

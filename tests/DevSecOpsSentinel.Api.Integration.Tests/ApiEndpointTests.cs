@@ -61,6 +61,29 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
+    public async Task Hardened_scenario_is_the_zero_findings_baseline()
+    {
+        // The product claim that the AI agrees with the deterministic engine
+        // instead of inventing vulnerabilities rests on this scenario returning
+        // nothing. A new rule that fires here breaks that demonstration, so the
+        // baseline is asserted rather than assumed.
+        ScenarioResponse? scenario = await _client
+            .GetFromJsonAsync<ScenarioResponse>("/api/scenarios/hardened-workflow");
+
+        Assert.NotNull(scenario);
+
+        HttpResponseMessage response = await _client.PostAsJsonAsync(
+            "/api/workflows/analyze",
+            new { fileName = scenario!.FileName, content = scenario.Content });
+
+        AnalysisResponse? analysis =
+            await response.Content.ReadFromJsonAsync<AnalysisResponse>();
+
+        Assert.NotNull(analysis);
+        Assert.Empty(analysis!.Findings);
+    }
+
+    [Fact]
     public async Task Script_injection_scenario_isolates_the_new_rule()
     {
         // The bundled scenario is pinned, permission-scoped and timed out, so

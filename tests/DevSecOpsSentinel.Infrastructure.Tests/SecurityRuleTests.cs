@@ -401,7 +401,9 @@ public sealed class SecurityRuleTests
         new ExcessivePermissionsRule(),
         new MissingTimeoutRule(),
         new UnsafePullRequestTargetRule(),
-        new ScriptInjectionRule()
+        new ScriptInjectionRule(),
+        new PersistedCredentialsRule(),
+        new UntrustedCheckoutRule()
     ];
 
     private sealed class ReadAllRegressionRule :
@@ -715,6 +717,192 @@ public sealed class SecurityRuleTests
         Assert.Equal("run", block.Key);
         Assert.Equal(10, block.HeaderLine);
         Assert.Equal(2, block.Content.Count);
+    }
+
+    [Fact]
+    public void Checkout_without_persist_credentials_uses_the_unsafe_default()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new PersistedCredentialsRule().Evaluate(workflow));
+
+        Assert.Equal("GHA006", finding.RuleId);
+        Assert.Equal(9, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Checkout_that_disables_persist_credentials_is_not_reported()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - name: Checkout",
+            "        uses: actions/checkout@0000000000000000000000000000000000000000",
+            "        with:",
+            "          persist-credentials: false"
+        ]));
+
+        Assert.Empty(new PersistedCredentialsRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Persist_credentials_set_to_true_is_reported_at_its_own_line()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000",
+            "        with:",
+            "          persist-credentials: true"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new PersistedCredentialsRule().Evaluate(workflow));
+
+        Assert.Equal(11, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Non_checkout_actions_are_not_persist_credentials_findings()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/setup-node@0000000000000000000000000000000000000000",
+            "        with:",
+            "          node-version: 22"
+        ]));
+
+        Assert.Empty(new PersistedCredentialsRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Pull_request_target_checking_out_head_sha_is_critical()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Review",
+            "on:",
+            "  pull_request_target:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000",
+            "        with:",
+            "          ref: ${{ github.event.pull_request.head.sha }}"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new UntrustedCheckoutRule().Evaluate(workflow));
+
+        Assert.Equal("GHA007", finding.RuleId);
+        Assert.Equal(WorkflowSeverity.Critical, finding.Severity);
+        Assert.Equal(11, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Pull_request_target_without_an_untrusted_ref_is_not_reported()
+    {
+        // The trigger alone is GHA004's concern. Without a checkout of the
+        // contributor's code there is no execution of untrusted input.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Label",
+            "on:",
+            "  pull_request_target:",
+            "jobs:",
+            "  label:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000"
+        ]));
+
+        Assert.Empty(new UntrustedCheckoutRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Untrusted_ref_under_the_safe_trigger_is_not_reported()
+    {
+        // pull_request already runs in the contributor's context without
+        // secrets, so checking out their head is the normal, safe thing to do.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  pull_request:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000",
+            "        with:",
+            "          ref: ${{ github.event.pull_request.head.sha }}"
+        ]));
+
+        Assert.Empty(new UntrustedCheckoutRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void With_inputs_are_attributed_to_the_step_that_declares_them()
+    {
+        // Two checkout steps in one job: only the second disables the token.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000",
+            "      - uses: actions/checkout@0000000000000000000000000000000000000000",
+            "        with:",
+            "          persist-credentials: false"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new PersistedCredentialsRule().Evaluate(workflow));
+
+        Assert.Equal(9, finding.LineNumber);
     }
 
     private ParsedWorkflow Parse(string content)
