@@ -27,6 +27,8 @@ try {
     & .\scripts\verify-release-package.ps1
     & .\scripts\check-repository.ps1
     & .\scripts\audit-packages.ps1
-    Write-Host "v1.0 local release gates passed. Start the API before running smoke tests." -ForegroundColor Green
+    & .\scripts\smoke-test-api.ps1 -StartApi
+
+    Write-Host "Local release gates passed." -ForegroundColor Green
 }
 finally { Pop-Location }
