@@ -164,7 +164,9 @@ public sealed class SecurityRuleTests
             new UnpinnedActionRule().Evaluate(workflow);
 
         WorkflowPatch patch =
-            new WorkflowPatchGenerator(_parser)
+            new WorkflowPatchGenerator(
+                _parser,
+                CreateRules())
                 .Generate(workflow, findings);
 
         Assert.Contains(
@@ -294,6 +296,108 @@ public sealed class SecurityRuleTests
 
         Assert.Equal(4, finding.LineNumber);
         Assert.True(finding.IsAutomaticallyFixable);
+    }
+
+
+    [Fact]
+    public void Patch_is_valid_only_when_applied_findings_are_removed()
+    {
+        string content = string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "permissions: write-all",
+            "jobs:",
+            "  build:",
+            "    runs-on: ubuntu-latest"
+        ]);
+
+        ParsedWorkflow workflow = Parse(content);
+        IReadOnlyList<IWorkflowSecurityRule> rules = CreateRules();
+
+        WorkflowFinding[] findings = rules
+            .SelectMany(rule => rule.Evaluate(workflow))
+            .ToArray();
+
+        WorkflowPatch patch = new WorkflowPatchGenerator(
+            _parser,
+            rules)
+            .Generate(workflow, findings);
+
+        Assert.True(patch.ProposedContentIsValid);
+        Assert.Contains("GHA002", patch.AppliedRuleIds);
+        Assert.Contains(
+            "permissions: read-all",
+            patch.ProposedContent,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Patch_is_invalid_when_remediation_introduces_a_new_finding()
+    {
+        string content = string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "permissions: write-all",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest"
+        ]);
+
+        ParsedWorkflow workflow = Parse(content);
+
+        IWorkflowSecurityRule[] rules =
+        [
+            new ExcessivePermissionsRule(),
+            new ReadAllRegressionRule()
+        ];
+
+        WorkflowFinding[] findings = rules
+            .SelectMany(rule => rule.Evaluate(workflow))
+            .ToArray();
+
+        WorkflowPatch patch = new WorkflowPatchGenerator(
+            _parser,
+            rules)
+            .Generate(workflow, findings);
+
+        Assert.False(patch.ProposedContentIsValid);
+    }
+
+    private static IReadOnlyList<IWorkflowSecurityRule> CreateRules() =>
+    [
+        new UnpinnedActionRule(),
+        new ExcessivePermissionsRule(),
+        new MissingTimeoutRule(),
+        new UnsafePullRequestTargetRule()
+    ];
+
+    private sealed class ReadAllRegressionRule :
+        IWorkflowSecurityRule
+    {
+        public string RuleId => "TEST001";
+        public string Title => "Remediation regression";
+        public WorkflowSeverity Severity => WorkflowSeverity.High;
+
+        public IReadOnlyList<WorkflowFinding> Evaluate(
+            ParsedWorkflow workflow) =>
+            workflow.Lines
+                .Where(line => line.Text.Equals(
+                    "permissions: read-all",
+                    StringComparison.OrdinalIgnoreCase))
+                .Select(line => new WorkflowFinding(
+                    RuleId,
+                    Severity,
+                    Title,
+                    "The proposed remediation introduced a regression.",
+                    line.Number,
+                    "Do not introduce this value.",
+                    false))
+                .ToArray();
     }
 
     private ParsedWorkflow Parse(string content)

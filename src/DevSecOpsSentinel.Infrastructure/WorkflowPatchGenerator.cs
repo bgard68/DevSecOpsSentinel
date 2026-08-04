@@ -4,10 +4,14 @@ using DevSecOpsSentinel.Domain;
 namespace DevSecOpsSentinel.Infrastructure;
 
 public sealed class WorkflowPatchGenerator(
-    IWorkflowParser parser) : IWorkflowPatchGenerator
+    IWorkflowParser parser,
+    IEnumerable<IWorkflowSecurityRule> rules) : IWorkflowPatchGenerator
 {
     private const string PlaceholderSha =
         "0000000000000000000000000000000000000000";
+
+    private readonly IReadOnlyList<IWorkflowSecurityRule> _rules =
+        rules.ToArray();
 
     public WorkflowPatch Generate(
         ParsedWorkflow workflow,
@@ -23,7 +27,7 @@ public sealed class WorkflowPatchGenerator(
             .Select(line => line.Number)
             .ToHashSet();
 
-        HashSet<string> appliedRules = [];
+        List<WorkflowFinding> appliedFindings = [];
 
         foreach (WorkflowFinding finding in findings
             .Where(finding =>
@@ -57,11 +61,11 @@ public sealed class WorkflowPatchGenerator(
 
                 string prefix = lines[index][..(atIndex + 1)];
                 lines[index] = prefix + PlaceholderSha + comment;
-                appliedRules.Add(finding.RuleId);
+                appliedFindings.Add(finding);
             }
             else if (
                 finding.RuleId == "GHA002" &&
-                lines[index].Trim().Equals(
+                RemoveTrailingComment(lines[index].Trim()).Equals(
                     "permissions: write-all",
                     StringComparison.OrdinalIgnoreCase))
             {
@@ -70,7 +74,7 @@ public sealed class WorkflowPatchGenerator(
                      lines[index].TrimStart().Length)];
 
                 lines[index] = indent + "permissions: read-all";
-                appliedRules.Add(finding.RuleId);
+                appliedFindings.Add(finding);
             }
         }
 
@@ -100,25 +104,110 @@ public sealed class WorkflowPatchGenerator(
                 new string(' ', indentCount + 2) +
                 "timeout-minutes: 15");
 
-            appliedRules.Add(finding.RuleId);
+            appliedFindings.Add(finding);
         }
 
         string proposed = string.Join('\n', lines);
+        WorkflowDocument proposedDocument = new(
+            workflow.Document.FileName,
+            proposed);
 
-        bool isValid = parser
-            .Parse(new WorkflowDocument(
-                workflow.Document.FileName,
-                proposed))
-            .IsValid;
+        bool proposedContentIsValid = ValidateProposedContent(
+            workflow,
+            findings,
+            appliedFindings,
+            proposedDocument);
 
         return new WorkflowPatch(
             workflow.Document.Content,
             proposed,
-            appliedRules
+            appliedFindings
+                .Select(finding => finding.RuleId)
+                .Distinct(StringComparer.Ordinal)
                 .OrderBy(id => id, StringComparer.Ordinal)
                 .ToArray(),
-            isValid);
+            proposedContentIsValid);
     }
+
+    private bool ValidateProposedContent(
+        ParsedWorkflow originalWorkflow,
+        IReadOnlyList<WorkflowFinding> originalFindings,
+        IReadOnlyList<WorkflowFinding> appliedFindings,
+        WorkflowDocument proposedDocument)
+    {
+        WorkflowParseResult parseResult = parser.Parse(proposedDocument);
+
+        if (!parseResult.IsValid ||
+            parseResult.Workflow is not ParsedWorkflow proposedWorkflow)
+        {
+            return false;
+        }
+
+        if (!HasEquivalentStructure(
+            originalWorkflow,
+            proposedWorkflow))
+        {
+            return false;
+        }
+
+        WorkflowFinding[] proposedFindings = _rules
+            .SelectMany(rule => rule.Evaluate(proposedWorkflow))
+            .ToArray();
+
+        IReadOnlyDictionary<string, int> originalCounts =
+            CountByRule(originalFindings);
+
+        IReadOnlyDictionary<string, int> appliedCounts =
+            CountByRule(appliedFindings);
+
+        IReadOnlyDictionary<string, int> proposedCounts =
+            CountByRule(proposedFindings);
+
+        HashSet<string> allRuleIds = originalCounts.Keys
+            .Concat(proposedCounts.Keys)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (string ruleId in allRuleIds)
+        {
+            int originalCount = originalCounts.GetValueOrDefault(ruleId);
+            int appliedCount = appliedCounts.GetValueOrDefault(ruleId);
+            int proposedCount = proposedCounts.GetValueOrDefault(ruleId);
+            int maximumExpectedCount =
+                Math.Max(0, originalCount - appliedCount);
+
+            if (proposedCount > maximumExpectedCount)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HasEquivalentStructure(
+        ParsedWorkflow original,
+        ParsedWorkflow proposed)
+    {
+        return original.Jobs.Count == proposed.Jobs.Count &&
+            original.Triggers
+                .OrderBy(trigger => trigger, StringComparer.Ordinal)
+                .SequenceEqual(
+                    proposed.Triggers.OrderBy(
+                        trigger => trigger,
+                        StringComparer.Ordinal),
+                    StringComparer.Ordinal);
+    }
+
+    private static IReadOnlyDictionary<string, int> CountByRule(
+        IEnumerable<WorkflowFinding> findings) =>
+        findings
+            .GroupBy(
+                finding => finding.RuleId,
+                StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Count(),
+                StringComparer.Ordinal);
 
     private static bool CanPatchLine(
         int? lineNumber,
@@ -128,5 +217,14 @@ public sealed class WorkflowPatchGenerator(
         return lineNumber is >= 1 &&
             lineNumber <= lineCount &&
             semanticLineNumbers.Contains(lineNumber.Value);
+    }
+
+    private static string RemoveTrailingComment(string text)
+    {
+        int commentIndex = text.IndexOf('#');
+
+        return commentIndex >= 0
+            ? text[..commentIndex].TrimEnd()
+            : text;
     }
 }
