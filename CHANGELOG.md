@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Testing
+
+- Ran the API smoke suite in CI. It previously ran only from `run-all.ps1` on a
+  developer machine, so a pull request could break one of its twenty-five checks
+  and merge clean.
+- Made `smoke-test-api.ps1` cross-platform. It assumed a Windows path separator,
+  a window style that exists only on Windows, and `Win32_Process` for finding the
+  child the launcher spawns.
+
 ### Security
 
 - Added CodeQL code scanning for C# and TypeScript, on pull requests, on `main`,
