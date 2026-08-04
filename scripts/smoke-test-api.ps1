@@ -26,20 +26,30 @@ function Start-ApiForSmokeTest {
 
     $script:ApiLogPath = Join-Path ([System.IO.Path]::GetTempPath()) "sentinel-smoke-api.log"
 
+    # Built from segments rather than a literal path, because a backslash is an
+    # ordinary filename character on Linux and the CI runner is Linux.
+    $projectPath = Join-Path $root "src" |
+        Join-Path -ChildPath "DevSecOpsSentinel.Api" |
+        Join-Path -ChildPath "DevSecOpsSentinel.Api.csproj"
+
     try {
-        # Hidden rather than a console window: a visible window can be closed
-        # mid-run, which kills the API and fails the gate for a reason that has
-        # nothing to do with the API. Output goes to a log so a genuine startup
-        # failure is still diagnosable.
-        $process = Start-Process dotnet `
-            -ArgumentList @(
-                "run", "--project",
-                (Join-Path $root "src\DevSecOpsSentinel.Api\DevSecOpsSentinel.Api.csproj")
-            ) `
-            -WindowStyle Hidden `
-            -RedirectStandardOutput $script:ApiLogPath `
-            -RedirectStandardError "$script:ApiLogPath.err" `
-            -PassThru
+        $startArguments = @{
+            FilePath = "dotnet"
+            ArgumentList = @("run", "--project", $projectPath)
+            RedirectStandardOutput = $script:ApiLogPath
+            RedirectStandardError = "$script:ApiLogPath.err"
+            PassThru = $true
+        }
+
+        # A visible console window can be closed mid-run, which kills the API and
+        # fails the gate for a reason that has nothing to do with the API. The
+        # parameter only exists on Windows, so it is applied conditionally rather
+        # than assumed.
+        if ($IsWindows) {
+            $startArguments.WindowStyle = "Hidden"
+        }
+
+        $process = Start-Process @startArguments
 
         $deadline = (Get-Date).AddSeconds(90)
         while ((Get-Date) -lt $deadline) {
@@ -211,10 +221,17 @@ finally {
         Write-Host "Stopping the API started for smoke tests." -ForegroundColor Cyan
 
         # dotnet run launches the application as a child, so stopping only the
-        # launcher would leave the server holding the port.
+        # launcher would leave the server holding the port. Win32_Process is a
+        # Windows-only way to find it; elsewhere pgrep does the same job.
         try {
-            Get-CimInstance Win32_Process -Filter "ParentProcessId = $($ApiProcess.Id)" -ErrorAction SilentlyContinue |
-                ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            if ($IsWindows) {
+                Get-CimInstance Win32_Process -Filter "ParentProcessId = $($ApiProcess.Id)" -ErrorAction SilentlyContinue |
+                    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            }
+            else {
+                & pgrep -P $ApiProcess.Id 2>$null |
+                    ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
+            }
         } catch { }
 
         try { $ApiProcess | Stop-Process -Force -ErrorAction SilentlyContinue } catch { }

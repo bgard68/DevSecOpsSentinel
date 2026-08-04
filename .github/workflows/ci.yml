@@ -188,6 +188,27 @@ jobs:
           --vulnerable
           --include-transitive
 
+      # Kestrel binds https://localhost:7001, which needs a certificate to
+      # exist. Trust is not required, because the smoke client skips validation.
+      - name: Create the HTTPS development certificate
+        run: dotnet dev-certs https
+
+      #
+      # The tests above run the application through WebApplicationFactory, with
+      # the environment set to Testing and configuration supplied in memory.
+      # Nothing in them exercises the real startup path: appsettings.json,
+      # ValidateOnStart, the scenario files being copied to the output directory,
+      # or HTTPS redirection. All 108 can pass on an application that does not
+      # start.
+      #
+      # This step starts the application the ordinary way and drives it over
+      # real HTTP. It forces Mock mode and disables GitHub, so it never spends
+      # OpenAI credit or reaches the network.
+      #
+      - name: Run API smoke tests
+        shell: pwsh
+        run: ./scripts/smoke-test-api.ps1 -StartApi
+
   frontend:
     name: Frontend Build, Test and Audit
     needs:
