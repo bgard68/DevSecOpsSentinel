@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DevSecOpsSentinel.Api.Operational;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -33,8 +34,8 @@ public sealed class ApiKeyAuthenticationMiddleware(
         {
             logger.LogWarning(
                 "Rejected unauthorized request for {Method} {Path}.",
-                context.Request.Method,
-                context.Request.Path);
+                LogSanitizer.ForLog(context.Request.Method),
+                LogSanitizer.ForLog(context.Request.Path));
 
             await WriteUnauthorizedAsync(context);
             return;

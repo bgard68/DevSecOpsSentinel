@@ -52,6 +52,18 @@ public sealed class FailurePathTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_request_path_cannot_forge_a_log_entry()
+    {
+        // A path containing a line break would otherwise split one log entry
+        // into several, letting a caller fabricate lines that look as though the
+        // application emitted them.
+        HttpResponseMessage response = await _client.GetAsync(
+            "/api/scenarios/%0d%0aFATAL%20fabricated%20entry");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GitHub_repositories_report_unavailable_when_unconfigured()
     {
         // GitHub is disabled in this configuration, so the endpoint must say the

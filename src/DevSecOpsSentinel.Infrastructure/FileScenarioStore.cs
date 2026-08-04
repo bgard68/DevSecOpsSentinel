@@ -12,14 +12,52 @@ public sealed class FileScenarioStore
     public FileScenarioStore(string scenarioDirectory)
     {
         _scenarioDirectory = scenarioDirectory;
-        string metadataPath = Path.Combine(_scenarioDirectory, "scenarios.json");
-        string json = File.ReadAllText(metadataPath);
+        string json = File.ReadAllText(
+            ResolveWithin(_scenarioDirectory, "scenarios.json"));
         _scenarios = JsonSerializer.Deserialize<ScenarioSummary[]>(json,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
             ?? throw new InvalidOperationException("Scenario metadata could not be loaded.");
     }
 
     public IReadOnlyList<ScenarioSummary> GetAll() => _scenarios;
+
+    /// <summary>
+    /// Resolves a file name inside the scenario directory, refusing anything
+    /// that would land outside it.
+    ///
+    /// <see cref="Path.Combine(string, string)"/> silently discards the earlier
+    /// argument when a later one is rooted, so a metadata entry of
+    /// <c>/etc/passwd</c> or <c>..\..\secrets.txt</c> would read a file the
+    /// scenario directory does not contain. The metadata ships with the
+    /// application rather than arriving from a request, so this is defence in
+    /// depth rather than a fix for a live path — but a bundled file is exactly
+    /// the kind of input that stops being trusted the moment someone makes it
+    /// configurable.
+    /// </summary>
+    private static string ResolveWithin(string directory, string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            throw new InvalidOperationException(
+                "A scenario file name is required.");
+        }
+
+        string root = Path.GetFullPath(directory);
+        string resolved = Path.GetFullPath(Path.Combine(root, fileName));
+
+        string rootWithSeparator =
+            root.EndsWith(Path.DirectorySeparatorChar)
+                ? root
+                : root + Path.DirectorySeparatorChar;
+
+        if (!resolved.StartsWith(rootWithSeparator, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Scenario file '{fileName}' resolves outside the scenario directory.");
+        }
+
+        return resolved;
+    }
 
     public ScenarioDetail? GetById(string id)
     {
@@ -30,12 +68,11 @@ public sealed class FileScenarioStore
             return null;
         }
 
-        string path = Path.Combine(_scenarioDirectory, scenario.FileName);
         return new ScenarioDetail(
             scenario.Id,
             scenario.Name,
             scenario.Description,
             scenario.FileName,
-            File.ReadAllText(path));
+            File.ReadAllText(ResolveWithin(_scenarioDirectory, scenario.FileName)));
     }
 }

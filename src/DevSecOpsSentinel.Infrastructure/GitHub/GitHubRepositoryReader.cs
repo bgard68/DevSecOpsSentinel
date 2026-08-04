@@ -100,7 +100,9 @@ public sealed class GitHubRepositoryReader(
     private async Task<HttpResponseMessage> SendAsync(string path, CancellationToken cancellationToken)
     {
         string token = await tokenProvider.GetTokenAsync(cancellationToken);
-        var request = new HttpRequestMessage(HttpMethod.Get, $"{options.ApiBaseUrl.TrimEnd('/')}{path}");
+        // Disposed once the response headers are back. The two other GitHub
+        // clients already do this; this one was the exception.
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{options.ApiBaseUrl.TrimEnd('/')}{path}");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Accept.ParseAdd("application/vnd.github+json");
         request.Headers.UserAgent.ParseAdd(ProductInfo.UserAgent);
