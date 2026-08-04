@@ -1,0 +1,44 @@
+name: Dependency Review
+
+# Refuses a pull request that introduces a dependency with a known
+# vulnerability, before it reaches main.
+#
+# This is not what `npm audit` and `dotnet list package --vulnerable` already
+# do in CI. Those report on the dependency set as it stands, so a vulnerable
+# package added by a pull request is only caught once it has been merged and
+# the audit next runs. This compares the pull request against its base and
+# refuses the change itself.
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Review Dependency Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      # Writes the summary comment onto the pull request.
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
+        with:
+          # Matches the threshold the existing npm audit gate already enforces,
+          # so the two cannot disagree about what is acceptable.
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure

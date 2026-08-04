@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Security
+
+- Added CodeQL code scanning for C# and TypeScript, on pull requests, on `main`,
+  and weekly. The weekly sweep matters because a push-triggered scan never
+  re-examines code against rules added to the CodeQL packs afterwards.
+- Added dependency review on pull requests, refusing a change that introduces a
+  dependency with a known high-severity vulnerability. This is distinct from the
+  existing audits: those report on the dependency set as it stands, so a
+  vulnerable package arrives on `main` first and is caught only when the audit
+  next runs. Dependency review refuses the change itself.
+- Both workflows pin every action to a commit SHA, which the repository's own
+  GHA001 rule requires and which its Actions policy now enforces.
+- Enabled private vulnerability reporting, so the reporting instruction in this
+  policy names a mechanism rather than an intention.
+
 ## 1.2.2 — 2026-08-04
 
 ### Changed

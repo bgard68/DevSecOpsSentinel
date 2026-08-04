@@ -1,0 +1,63 @@
+name: CodeQL
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+  # A weekly sweep catches rules added to the CodeQL packs after a commit was
+  # last analysed, which a push-triggered scan alone never re-examines.
+  schedule:
+    - cron: "41 6 * * 2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      # Uploading results is the only elevated permission this needs.
+      security-events: write
+      contents: read
+      actions: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: csharp
+          - language: javascript-typescript
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      # build-mode: none analyses source directly rather than observing a
+      # compilation. It avoids reproducing the .NET and npm builds a second
+      # time, and removes a class of CI failure where the scan breaks because
+      # the build did rather than because the code is wrong.
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@18420e3271f74589575af831a523c833acda327f
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-and-quality
+
+      - name: Analyse
+        uses: github/codeql-action/analyze@18420e3271f74589575af831a523c833acda327f
+        with:
+          category: "/language:${{ matrix.language }}"
