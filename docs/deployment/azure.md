@@ -59,12 +59,36 @@ Two options, both fine:
 **Key Vault references.** Adds rotation and audit, at the cost of one more
 dependency.
 
+### What is a secret, and what is only configuration
+
+Three values are secrets. Everything else is ordinary configuration and can sit
+in plain application settings.
+
+| Secret | Purpose |
+| --- | --- |
+| `Security__ApiKey` | Gates the whole API. Without it a deployment refuses to start |
+| `GitHub__PrivateKey` | Signs the GitHub App JWT |
+| `OpenAI__ApiKey` | Live AI explanations only |
+
 ```
+Security__ApiKey   = @Microsoft.KeyVault(SecretUri=https://<vault>.vault.azure.net/secrets/sentinel-api-key/)
 GitHub__PrivateKey = @Microsoft.KeyVault(SecretUri=https://<vault>.vault.azure.net/secrets/github-app-private-key/)
 OpenAI__ApiKey     = @Microsoft.KeyVault(SecretUri=https://<vault>.vault.azure.net/secrets/openai-api-key/)
 ```
 
 Omitting the version means rotation takes effect without a redeploy.
+
+| Not a secret | Notes |
+| --- | --- |
+| `GitHub__AppId`, `GitHub__InstallationId` | Identifiers, not credentials. They authorise nothing on their own |
+| `GitHub__AllowedRepositories__0` | The allowlist. Visible by design |
+| `GitHub__Enabled`, `OpenAI__Mode`, `Security__Mode` | Switches |
+| `AllowedHosts`, `Security__AllowedOrigins__0` | Host and origin |
+
+`OpenAI__ApiKey` and `Security__ApiKey` need no special handling — they are
+single-line configuration values, so a reference resolves straight into them.
+Only the private key needed work, because it was the one credential read from a
+file rather than from configuration.
 
 ### The private key
 
@@ -74,7 +98,7 @@ Vault references deliver values rather than files. `GitHub:PrivateKeyPath`
 remains for local use, and configuration wins when both are present so a stale
 file on the host cannot serve a deployment.
 
-**Store it base64-encoded.** A PEM is multi-line, and the tooling around
+**Store the private key base64-encoded.** A PEM is multi-line, and the tooling around
 deployment settings handles line breaks inconsistently — a key pasted into a
 setting frequently arrives with them stripped and then fails to import for a
 reason that looks nothing like the cause. The application accepts either form
