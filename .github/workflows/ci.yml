@@ -14,56 +14,56 @@ permissions:
 
 jobs:
   build-test-audit:
+    name: Build, Test & Dependency Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@3a7d5fcf7f3ebdf9f29335f958f6fb1d1d5a5b55
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: "10.0.x"
 
       - name: Setup Node.js
-        uses: actions/setup-node@1e60f620b9541d0909f3c5d64a49d2fef9b934f
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
           cache-dependency-path: src/devsecops-sentinel-web/package-lock.json
 
-      - name: Verify repository protection
-        shell: pwsh
-        run: ./scripts/check-repository.ps1
-
-      - name: Verify central package management
+      - name: Verify Central Package Management
         shell: pwsh
         run: ./scripts/verify-central-packages.ps1
 
-      - name: Restore .NET packages
-        run: dotnet restore ./DevSecOpsSentinel.slnx
+      - name: Restore .NET
+        run: dotnet restore
 
-      - name: Build .NET solution
-        run: dotnet build ./DevSecOpsSentinel.slnx --configuration Release --no-restore
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
 
-      - name: Run .NET tests
-        run: dotnet test ./DevSecOpsSentinel.slnx --configuration Release --no-build
+      - name: Run .NET Tests
+        run: dotnet test --configuration Release --no-build --verbosity normal
 
-      - name: Audit NuGet packages
-        run: dotnet list ./DevSecOpsSentinel.slnx package --vulnerable --include-transitive
-
-      - name: Install frontend dependencies
+      - name: Install Frontend Dependencies
         working-directory: src/devsecops-sentinel-web
         run: npm ci
 
-      - name: Audit frontend packages
+      - name: Verify Frontend Toolchain
         working-directory: src/devsecops-sentinel-web
-        run: npm audit --audit-level=high
+        run: npm run verify:toolchain
 
-      - name: Run frontend tests
+      - name: Run Frontend Tests
         working-directory: src/devsecops-sentinel-web
         run: npm test
 
-      - name: Build frontend
+      - name: Audit npm Packages
         working-directory: src/devsecops-sentinel-web
-        run: npm run build
+        run: npm audit --audit-level=high
+
+      - name: Audit NuGet Packages
+        shell: pwsh
+        run: |
+          dotnet list package --vulnerable --include-transitive
