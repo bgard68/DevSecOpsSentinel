@@ -131,7 +131,7 @@ Operational requirements:
 - document any newly accepted repository risk.
 
 The authoritative repository governance policy is
-[`docs/security/repository-security-policy.md`](docs/security/repository-security-policy.md).
+[`docs/security/repository-security-policy.md`](security/repository-security-policy.md).
 
 Branch protection, selected-action policy enforcement, and GitHub-native push
 protection are not currently enforceable for this private repository on

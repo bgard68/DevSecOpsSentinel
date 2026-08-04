@@ -1,224 +1,152 @@
 # DevSecOps Sentinel
 
-**DevSecOps Sentinel** is a portfolio-grade GitHub Actions security analyzer built with .NET 10, React, TypeScript, a read-only GitHub App, and optional OpenAI guidance.
+[![CI](https://github.com/bgard68/DevSecOpsSentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/bgard68/DevSecOpsSentinel/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/bgard68/DevSecOpsSentinel/actions/workflows/codeql.yml/badge.svg)](https://github.com/bgard68/DevSecOpsSentinel/actions/workflows/codeql.yml)
+[![Gitleaks](https://github.com/bgard68/DevSecOpsSentinel/actions/workflows/gitleaks.yml/badge.svg)](https://github.com/bgard68/DevSecOpsSentinel/actions/workflows/gitleaks.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-It combines deterministic rules with advisory AI explanations, validated remediation previews, risk-reduction reporting, and exportable security evidence—without modifying repositories.
+A GitHub Actions supply-chain analyser. Deterministic rules find the problems;
+an optional AI layer explains them and provably cannot invent them.
+
+Built with .NET 10, React and TypeScript, a read-only GitHub App, and the OpenAI
+API.
 
 ![Connected dashboard](docs/assets/screenshots/01-connected-dashboard.png)
 
-## Why this project matters
+---
 
-Many security demos let an LLM decide what is vulnerable. DevSecOps Sentinel uses the opposite trust model:
+## The idea
 
-1. Deterministic rules identify findings and severity.
-2. Proposed changes are re-analyzed before being shown as valid.
-3. OpenAI explains confirmed findings but cannot create findings, change severity, or apply patches.
-4. GitHub access is restricted to a read-only GitHub App and an application allowlist.
+Most security tools that use a language model let the model decide what is
+vulnerable. This one does the opposite, and enforces it:
 
-The interesting part is not the explanations the model returns — the rules
-already carry a description and a recommendation, and the deterministic
-fallback produces comparable prose with no model call at all. It is the
-enforcement around the model. The response is constrained by a strict JSON
-schema, and the rule identifiers it returns must match the deterministic set
-exactly; a reply that invents a finding, drops one, or renames a rule is
-rejected and the fallback is used instead. The model cannot widen the result,
-only describe it.
+1. **Deterministic rules identify findings and severity.** They are the only
+   source of truth.
+2. **The model's response is schema-constrained**, and the rule identifiers it
+   returns must match the deterministic set *exactly*. A reply that invents a
+   finding, drops one, or renames a rule is rejected and replaced with a
+   deterministic fallback.
+3. **Proposed fixes are re-analysed** before being shown as valid. A patch that
+   introduces a finding is refused.
+4. **GitHub access is read-only**, restricted by the App's own permissions and
+   again by an allowlist the application checks independently.
 
-That constraint is the reason live AI can be enabled on a security tool at all,
-and it is what the project is actually demonstrating.
+The interesting part is not the prose the model returns — the rules already carry
+a description and a recommendation, and the fallback produces comparable text
+with no model call. It is the enforcement around it. That constraint is what
+makes live AI defensible in a security tool at all.
 
-## Capabilities
+---
 
-- Analyze embedded scenarios or real allowlisted GitHub workflows
-- Detect eleven classes of GitHub Actions weakness:
+## What it detects
 
-  | Rule | Detects | Severity |
-  | --- | --- | --- |
-  | GHA001 | Action reference not pinned to a commit SHA | High |
-  | GHA002 | Excessive token permissions | High |
-  | GHA003 | Job without a timeout | Medium |
-  | GHA004 | `pull_request_target` trigger needing review | Critical |
-  | GHA005 | Untrusted expression interpolated into a script body | Critical |
-  | GHA006 | Checkout leaving the job token on the runner | Medium |
-  | GHA007 | Privileged trigger checking out pull-request code | Critical |
-  | GHA008 | Reusable workflow call forwarding every secret | High |
-  | GHA009 | No declared token permissions at any scope | Medium |
-  | GHA010 | Self-hosted runner reachable from a pull request | High |
-  | GHA011 | `workflow_run` job consuming an untrusted artifact | High |
-- Generate deterministic remediation previews and unified diffs
-- Re-analyze proposed YAML and report resolved and remaining findings
-- Calculate before/after risk reduction
-- Export Markdown, JSON, SARIF, patch, and printable HTML reports
-- Add optional Mock or Live OpenAI explanations
-- Enforce read-only GitHub access with short-lived installation tokens
-- Run unit, integration, frontend, package-audit, repository-protection, and smoke-test gates
+Eleven rules covering pinning, permissions, timeouts, privileged triggers,
+script injection, credential persistence, untrusted checkout, secret
+forwarding, self-hosted runners and artifact poisoning.
 
-## Product screenshots
+| | | |
+| --- | --- | --- |
+| GHA001 unpinned action | GHA005 script injection | GHA009 undeclared permissions |
+| GHA002 excessive permissions | GHA006 persisted credentials | GHA010 self-hosted runner |
+| GHA003 missing timeout | GHA007 untrusted checkout | GHA011 artifact poisoning |
+| GHA004 `pull_request_target` | GHA008 inherited secrets | |
 
-### Live OpenAI explanation for a vulnerable workflow
+Full descriptions in [docs/architecture/rules.md](docs/architecture/rules.md).
 
-![Live AI vulnerable workflow](docs/assets/screenshots/02-live-ai-vulnerable-workflow.png)
+---
 
-### Safe workflow with zero deterministic findings
-
-![Safe workflow](docs/assets/screenshots/03-live-ai-safe-workflow.png)
-
-The safe-workflow result is important: the AI agrees with the deterministic engine instead of inventing vulnerabilities.
-
-## Architecture
-
-```mermaid
-flowchart LR
-    UI[React + TypeScript] --> API[ASP.NET Core API]
-    API --> APP[Application services]
-    APP --> DOMAIN[Domain models and rules]
-    APP --> INFRA[Infrastructure adapters]
-    INFRA --> GH[GitHub App\nRead-only]
-    INFRA --> OAI[OpenAI\nAdvisory only]
-    APP --> EXPORT[Markdown / JSON / SARIF / Patch / HTML]
-```
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
-
-## Trust boundaries
-
-- **Deterministic first:** rules are authoritative.
-- **AI advisory only:** AI cannot create findings, modify severity, or apply fixes.
-- **GitHub read-only:** no branch, commit, pull-request, merge, or repository-update operation is implemented.
-- **Allowlisted repositories only:** GitHub installation access and application configuration must both permit the repository.
-- **Secrets remain server-side:** API keys and GitHub private-key paths are stored outside source control.
-
-## Technology stack
-
-- .NET 10 / ASP.NET Core Minimal APIs
-- React 19, TypeScript 5.9, Vite 7
-- xUnit, Vitest, Testing Library
-- Official OpenAI .NET SDK
-- GitHub App installation authentication
-- Scalar API reference and OpenAPI
-- PowerShell release, audit, and smoke-test scripts
-
-## Quick start
+## Try it
 
 ```powershell
-pwsh -ExecutionPolicy Bypass
-cd C:\DevSecOpsSentinel
-
+git clone https://github.com/bgard68/DevSecOpsSentinel.git
+cd DevSecOpsSentinel
 .\scripts\setup-local.ps1
-.\scripts\run-all.ps1
+.\scripts\start-local.ps1
 ```
 
-Start the API:
+Open <http://localhost:5173>, pick a scenario, analyse it. **No credentials
+required** — GitHub is off by default and OpenAI defaults to Mock.
 
-```powershell
-dotnet run --project .\src\DevSecOpsSentinel.Api
-```
+Full setup, including the optional integrations, in
+[docs/getting-started.md](docs/getting-started.md).
 
-Start the frontend in another window:
+---
 
-```powershell
-cd .\src\devsecops-sentinel-web
-npm run dev
-```
+## Seeing the constraint work
 
-Open:
+Select **Script injection**, tick *Include AI explanation*, analyse.
 
-- Frontend: `http://localhost:5173`
-- API: `https://localhost:7001`
-- Scalar: `https://localhost:7001/scalar`
+![Live AI explaining a critical finding](docs/assets/screenshots/02-live-ai-vulnerable-workflow.png)
 
-## Configuration
+One Critical finding. The model explains it and supplies the `env:` binding that
+fixes it — a remediation the deterministic engine deliberately will not apply
+itself.
 
-The deterministic analyzer and bundled scenarios run without live external
-services by default. OpenAI, GitHub repository access, and GitHub action
-tag-to-SHA resolution are separate explicit opt-ins.
+Then select the safe workflow.
 
-- OpenAI defaults to `Mock` mode.
-- GitHub integration defaults to disabled.
-- Live credentials belong in .NET User Secrets or production secret storage.
+![Safe workflow returning nothing](docs/assets/screenshots/03-live-ai-safe-workflow.png)
 
-Detailed setup:
+Zero findings, and the model declines to invent any. That is the claim the whole
+design exists to support.
 
-- [OpenAI integration](docs/openai-integration.md)
-- [GitHub read-only integration](docs/github-read-only-integration.md)
-- [Operations guide](OPERATIONS.md)
+---
 
-## Validation
+## Documentation
 
-Install local Gitleaks pre-commit protection:
+| | |
+| --- | --- |
+| [Getting started](docs/getting-started.md) | Prerequisites, running it, secrets |
+| [Architecture](docs/architecture/README.md) | Layers and trust boundaries |
+| [Program flow](docs/architecture/program-flow.md) | What happens on a request |
+| [Detection rules](docs/architecture/rules.md) | All eleven, and how to add one |
+| [Engineering log](docs/engineering-log.md) | Defects found after "complete", and what prevents them now |
+| [CI/CD](docs/ci-cd.md) | Four workflows, path-selective builds |
+| [Scripts](docs/scripts.md) | Every script and why it exists |
+| [Full index](docs/README.md) | Everything else |
 
-```powershell
-.\scripts\install-gitleaks-precommit.ps1
-```
+---
 
-Secret-scanning guidance is documented in
-[`docs/security/gitleaks.md`](docs/security/gitleaks.md).
+## How it is built
 
-Run all local release gates:
+- **.NET 10** minimal APIs, layered so dependencies point inward
+- **React 19 + TypeScript 5.9**, Vite
+- **YamlDotNet** for document structure, with a line model retained for content
+  inside block scalars and for line-indexed patching
+- **117 .NET tests, 4 frontend tests**, and a 25-check smoke suite that drives a
+  real server over HTTP
+- **CodeQL, Gitleaks, dependency review, Dependabot**, secret scanning with push
+  protection, and SHA-pinned actions enforced by policy
+- Path-selective CI: a frontend change does not build the .NET solution, and a
+  change spanning both still builds both, in one pipeline
 
-```powershell
-.\scripts\run-all.ps1
-```
+The project passes its own analyser. Its workflows are SHA-pinned,
+least-privilege, timeout-bounded, and free of the injection pattern GHA005
+reports.
 
-With the API running:
+---
 
-```powershell
-.\scripts\smoke-test-api.ps1
-.\scripts\smoke-test-github-live.ps1 -EnableLiveGitHub
-.\scripts\smoke-test-openai-live.ps1 -EnableLiveOpenAi
-```
+## Deliberate exclusions
 
-## Portfolio walkthrough
+It creates no branches, commits, pull requests or merges. It does not scan on a
+schedule. It stores no history. Each would need a separate threat model, stronger
+authentication, and new GitHub permissions — so each is absent rather than
+half-built.
 
-See [PORTFOLIO-WALKTHROUGH.md](PORTFOLIO-WALKTHROUGH.md) for architecture decisions, engineering assessments, trade-offs, interview discussion points, and a recommended demonstration narrative.
+---
 
-## Release
+## Something worth reading
 
-This package represents **v1.0.0**. See [CHANGELOG.md](CHANGELOG.md), [RELEASE-NOTES.md](RELEASE-NOTES.md), and [DEMO-GUIDE.md](DEMO-GUIDE.md).
+[docs/engineering-log.md](docs/engineering-log.md) records eleven defects found
+*after* this project was first considered finished — including findings that
+never rendered in the interface, an exported patch `git apply` refused, a SARIF
+document no consumer would accept, and a protection gate that passed because it
+had nothing to check.
+
+Each entry covers how it surfaced and what now prevents it. The defects are more
+instructive than the features.
+
+---
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
-
-- Automated integration tests run in an isolated Testing environment and always force OpenAI Mock mode, even when local User Secrets use Live mode.
-
-## Deployment authentication
-
-Authentication can be disabled only in `Development` and `Testing`. Staging,
-demo, preview, and production deployments must set:
-
-```text
-Security__Mode=Required
-Security__ApiKey=<random secret with at least 32 characters>
-Security__HeaderName=X-API-Key
-Security__AllowedOrigins__0=https://your-frontend.example
-AllowedHosts=your-api.example
-```
-
-The React application does not contain an API key. In a protected private demo,
-the operator enters the access key at runtime; it is retained only in browser
-`sessionStorage` for the current tab. Do not use this shared-key approach for a
-public multi-user application; use OIDC/OAuth instead.
-
-PowerShell smoke tests accept `-ApiKey` or the
-`DEVSECOPS_SENTINEL_API_KEY` environment variable.
-
-## Optional action SHA resolution
-
-`GitHub:ResolveActionReferences` defaults to `false`. With the default, local
-analysis and CI remain deterministic and do not call GitHub to resolve action
-tags. Enable it only when verified-SHA remediation is desired:
-
-```text
-GitHub__ResolveActionReferences=true
-```
-
-Resolution failures remain fail-closed: the original action reference is left
-unchanged, the finding is not counted as resolved, and the patch includes a
-diagnostic warning.
-
-## Repository security governance
-
-Repository-level controls, enforced settings, current GitHub Free limitations,
-and accepted residual risks are documented in
-[`docs/security/repository-security-policy.md`](docs/security/repository-security-policy.md).

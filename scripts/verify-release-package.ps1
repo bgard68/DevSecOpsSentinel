@@ -6,15 +6,30 @@ Set-StrictMode -Version Latest
 
 $root = Split-Path -Parent $PSScriptRoot
 
+#
+# The root keeps only what GitHub surfaces specially, plus the changelog.
+# Everything else lives under docs/, indexed by docs/README.md.
+#
 $required = @(
     'README.md',
-    'ARCHITECTURE.md',
-    'PORTFOLIO-WALKTHROUGH.md',
-    'DEMO-GUIDE.md',
-    'OPERATIONS.md',
+    'SECURITY.md',
+    'CONTRIBUTING.md',
+    'CODE_OF_CONDUCT.md',
     'CHANGELOG.md',
-    'RELEASE-NOTES.md',
-    'RELEASE-CHECKLIST.md',
+    'LICENSE',
+    'docs/README.md',
+    'docs/getting-started.md',
+    'docs/configuration.md',
+    'docs/architecture/README.md',
+    'docs/architecture/program-flow.md',
+    'docs/architecture/rules.md',
+    'docs/engineering-log.md',
+    'docs/ci-cd.md',
+    'docs/scripts.md',
+    'docs/operations.md',
+    'docs/demo-guide.md',
+    'docs/portfolio-walkthrough.md',
+    'docs/release-checklist.md',
     'docs/assets/screenshots/01-connected-dashboard.png',
     'docs/assets/screenshots/02-live-ai-vulnerable-workflow.png',
     'docs/assets/screenshots/03-live-ai-safe-workflow.png'
