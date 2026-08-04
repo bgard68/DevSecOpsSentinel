@@ -22,7 +22,7 @@ public sealed class PersistedCredentialsRule : IWorkflowSecurityRule
     public WorkflowSeverity Severity => WorkflowSeverity.Medium;
 
     public IReadOnlyList<WorkflowFinding> Evaluate(ParsedWorkflow workflow) =>
-        WorkflowStepReader.ReadUsesSteps(workflow)
+        workflow.Structure.AllSteps
             .Where(step => step.IsAction("actions", "checkout"))
             .Where(LeavesCredentialsOnDisk)
             .Select(step => new WorkflowFinding(
@@ -32,18 +32,20 @@ public sealed class PersistedCredentialsRule : IWorkflowSecurityRule
                 "actions/checkout defaults persist-credentials to true, so the " +
                 "job token is written to .git/config and stays readable by every " +
                 "later step in the job.",
-                (step.InputLine("persist-credentials") ?? step.UsesLine).Number,
+                step.Input("persist-credentials")?.Line
+                    ?? step.UsesLine
+                    ?? step.Line,
                 "Set persist-credentials: false unless a later step needs to push " +
                 "with the job token.",
                 false))
             .ToArray();
 
-    private static bool LeavesCredentialsOnDisk(WorkflowUsesStep step)
+    private static bool LeavesCredentialsOnDisk(WorkflowStructuredStep step)
     {
-        string? configured = step.InputValue("persist-credentials");
+        WorkflowInputValue? configured = step.Input("persist-credentials");
 
         // Absent means the action's default, which is true.
         return configured is null ||
-            configured.Equals("true", StringComparison.OrdinalIgnoreCase);
+            configured.Value.Equals("true", StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -42,13 +42,30 @@ public sealed class WorkflowParser : IWorkflowParser
                 "A GitHub Actions workflow must define jobs.");
         }
 
-        IReadOnlyList<string> triggers = ParseTriggers(lines);
+        // A workflow the YAML parser rejects is one this analyser cannot make
+        // authoritative statements about. Reporting the parse error is better
+        // than running the line-based rules over it and returning findings that
+        // silently omit whatever the malformed region contained.
+        if (!YamlWorkflowStructureReader.TryRead(
+            document.Content,
+            out WorkflowStructure structure,
+            out string? yamlError))
+        {
+            return WorkflowParseResult.Failure(
+                $"Workflow YAML is not well formed: {yamlError}");
+        }
+
+        IReadOnlyList<string> triggers = structure.Triggers.Count > 0
+            ? structure.Triggers
+            : ParseTriggers(lines);
+
         IReadOnlyList<WorkflowJob> jobs = ParseJobs(lines);
 
         return WorkflowParseResult.Success(
             new ParsedWorkflow(document, lines, jobs, triggers)
             {
-                ScriptBlocks = scan.ScriptBlocks
+                ScriptBlocks = scan.ScriptBlocks,
+                Structure = structure
             });
     }
 

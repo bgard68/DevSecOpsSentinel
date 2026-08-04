@@ -12,6 +12,13 @@ public sealed record ParsedWorkflow(
     /// than YAML. Rules that reason about script content read them from here.
     /// </summary>
     public IReadOnlyList<WorkflowScriptBlock> ScriptBlocks { get; init; } = [];
+
+    /// <summary>
+    /// The document structure, read with a real YAML parser. Rules that reason
+    /// about relationships between elements use this; rules that classify raw
+    /// content continue to use <see cref="Lines"/>.
+    /// </summary>
+    public WorkflowStructure Structure { get; init; } = WorkflowStructure.Empty;
 }
 
 public sealed record WorkflowLine(int Number, int Indent, string Text);

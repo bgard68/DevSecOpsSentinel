@@ -905,6 +905,135 @@ public sealed class SecurityRuleTests
         Assert.Equal(9, finding.LineNumber);
     }
 
+    [Fact]
+    public void Flow_style_permissions_are_detected()
+    {
+        // Indentation matching only recognised a permissions: block followed by
+        // indented entries, so this form was silently missed.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on: push",
+            "permissions: {contents: write, issues: read}",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new ExcessivePermissionsRule().Evaluate(workflow));
+
+        Assert.Equal(3, finding.LineNumber);
+    }
+
+    [Fact]
+    public void Quoted_on_key_still_yields_triggers()
+    {
+        // Written this way to stop YAML 1.1 resolving `on` to the boolean true.
+        // A prefix match on "on:" does not see it.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Review",
+            "'on':",
+            "  pull_request_target:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest"
+        ]));
+
+        Assert.Contains("pull_request_target", workflow.Triggers);
+        Assert.Single(new UnsafePullRequestTargetRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Trigger_written_as_a_flow_sequence_is_understood()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Review",
+            "on: [push, pull_request_target]",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest"
+        ]));
+
+        Assert.Contains("pull_request_target", workflow.Triggers);
+    }
+
+    [Fact]
+    public void Permission_value_followed_by_a_comment_is_still_a_grant()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Build",
+            "on: push",
+            "permissions:",
+            "  contents: write # needed to push tags",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest"
+        ]));
+
+        Assert.Single(new ExcessivePermissionsRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Malformed_yaml_is_rejected_rather_than_partially_analyzed()
+    {
+        // Returning findings from a document the parser could not read would
+        // omit whatever the malformed region contained, which is the failure
+        // mode a deterministic-first analyser cannot afford.
+        WorkflowParseResult result = _parser.Parse(new WorkflowDocument(
+            "workflow.yml",
+            string.Join('\n',
+            [
+                "name: Build",
+                "on: push",
+                "jobs:",
+                "  build:",
+                "   runs-on: ubuntu-latest",
+                "     timeout-minutes: 15"
+            ])));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains("not well formed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Inputs_are_attributed_when_name_precedes_uses()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Review",
+            "on:",
+            "  pull_request_target:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - name: Check out the contributor's branch",
+            "        uses: actions/checkout@0000000000000000000000000000000000000000",
+            "        with:",
+            "          persist-credentials: false",
+            "          ref: ${{ github.event.pull_request.head.sha }}"
+        ]));
+
+        // persist-credentials is honoured, so only the untrusted checkout fires.
+        Assert.Empty(new PersistedCredentialsRule().Evaluate(workflow));
+
+        WorkflowFinding finding = Assert.Single(
+            new UntrustedCheckoutRule().Evaluate(workflow));
+
+        Assert.Equal(13, finding.LineNumber);
+    }
+
     private ParsedWorkflow Parse(string content)
     {
         WorkflowParseResult result = _parser.Parse(

@@ -46,17 +46,16 @@ public sealed class UntrustedCheckoutRule : IWorkflowSecurityRule
             return [];
         }
 
-        return WorkflowStepReader.ReadUsesSteps(workflow)
+        return workflow.Structure.AllSteps
             .Where(step => step.IsAction("actions", "checkout"))
             .Select(step => new
             {
                 Step = step,
-                Reference = step.InputValue("ref"),
-                Line = step.InputLine("ref")
+                Reference = step.Input("ref")
             })
             .Where(candidate =>
                 candidate.Reference is not null &&
-                IsUntrusted(candidate.Reference))
+                IsUntrusted(candidate.Reference.Value))
             .Select(candidate => new WorkflowFinding(
                 RuleId,
                 Severity,
@@ -64,7 +63,7 @@ public sealed class UntrustedCheckoutRule : IWorkflowSecurityRule
                 "This job runs with the base repository's secrets and a writable " +
                 "token, and checks out the pull request's own head. Any code the " +
                 "job then executes is contributor-controlled.",
-                (candidate.Line ?? candidate.Step.UsesLine).Number,
+                candidate.Reference!.Line,
                 "Use the pull_request trigger instead, or keep pull_request_target " +
                 "and do not check out or execute pull-request code in the same job.",
                 false))
