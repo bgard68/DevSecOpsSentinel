@@ -107,3 +107,33 @@ actual deployed API and frontend hosts.
 Action reference resolution is disabled by default. Set
 `GitHub:ResolveActionReferences=true` only when the deployment should make
 outbound GitHub Git Data API calls during remediation generation.
+
+## Repository governance operations
+
+All repository changes should follow this sequence:
+
+1. synchronize local `main` with `origin/main`;
+2. create a focused feature branch;
+3. validate changes locally;
+4. open a pull request into `main`;
+5. wait for all CI and Gitleaks checks to pass;
+6. merge only after reviewing the final diff;
+7. synchronize local `main` and remove the merged feature branch.
+
+Operational requirements:
+
+- keep every workflow action pinned to a verified full-length commit SHA;
+- preserve explicit least-privilege workflow permissions;
+- do not merge when release-package verification fails;
+- do not bypass a Gitleaks finding without confirming it is a false positive;
+- review Dependabot pull requests individually rather than merging them
+  automatically;
+- document any newly accepted repository risk.
+
+The authoritative repository governance policy is
+[`docs/security/repository-security-policy.md`](docs/security/repository-security-policy.md).
+
+Branch protection, selected-action policy enforcement, and GitHub-native push
+protection are not currently enforceable for this private repository on
+GitHub Free. Green-check and pull-request discipline are therefore procedural
+controls and must be followed consistently.

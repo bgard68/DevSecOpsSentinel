@@ -191,3 +191,8 @@ Resolution failures remain fail-closed: the original action reference is left
 unchanged, the finding is not counted as resolved, and the patch includes a
 diagnostic warning.
 
+## Repository security governance
+
+Repository-level controls, enforced settings, current GitHub Free limitations,
+and accepted residual risks are documented in
+[`docs/security/repository-security-policy.md`](docs/security/repository-security-policy.md).
