@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - feature/**
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@3a7d5fcf7f3ebdf9f29335f958f6fb1d1d5a5b55
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@1e60f620b9541d0909f3c5d64a49d2fef9b934f
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/devsecops-sentinel-web/package-lock.json
+
+      - name: Verify repository protection
+        shell: pwsh
+        run: ./scripts/check-repository.ps1
+
+      - name: Verify central package management
+        shell: pwsh
+        run: ./scripts/verify-central-packages.ps1
+
+      - name: Restore .NET packages
+        run: dotnet restore ./DevSecOpsSentinel.slnx
+
+      - name: Build .NET solution
+        run: dotnet build ./DevSecOpsSentinel.slnx --configuration Release --no-restore
+
+      - name: Run .NET tests
+        run: dotnet test ./DevSecOpsSentinel.slnx --configuration Release --no-build
+
+      - name: Audit NuGet packages
+        run: dotnet list ./DevSecOpsSentinel.slnx package --vulnerable --include-transitive
+
+      - name: Install frontend dependencies
+        working-directory: src/devsecops-sentinel-web
+        run: npm ci
+
+      - name: Audit frontend packages
+        working-directory: src/devsecops-sentinel-web
+        run: npm audit --audit-level=high
+
+      - name: Run frontend tests
+        working-directory: src/devsecops-sentinel-web
+        run: npm test
+
+      - name: Build frontend
+        working-directory: src/devsecops-sentinel-web
+        run: npm run build
