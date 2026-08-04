@@ -33,7 +33,23 @@ public sealed class ExcessivePermissionsRule : IWorkflowSecurityRule
     private static bool IsExcessive(WorkflowPermissionEntry entry) =>
         IsWriteAll(entry) ||
         (entry.Name.Length > 0 &&
-         entry.Value.Equals("write", StringComparison.OrdinalIgnoreCase));
+         entry.Value.Equals("write", StringComparison.OrdinalIgnoreCase) &&
+         !IsIdToken(entry));
+
+    /// <summary>
+    /// <c>id-token: write</c> is not access to the repository.
+    ///
+    /// It permits requesting an OIDC token and nothing else; what that token can
+    /// reach is decided by the trust policy on the cloud role, not by this
+    /// grant. It is also the permission that REPLACES a stored deployment
+    /// credential, so reporting it pushes a reader away from the safer design.
+    ///
+    /// The remediation this rule offers settles it: there is no useful
+    /// <c>id-token: read</c>, and <c>read-all</c> does not include it. Advice
+    /// that cannot be followed without breaking the workflow is not advice.
+    /// </summary>
+    private static bool IsIdToken(WorkflowPermissionEntry entry) =>
+        entry.Name.Equals("id-token", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// The scalar form <c>permissions: write-all</c>, which the patch generator

@@ -45,6 +45,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       # build-mode: none analyses source directly rather than observing a
       # compilation. It avoids reproducing the .NET and npm builds a second

@@ -14,6 +14,25 @@ import type {
 
 const apiKeyStorageKey = 'devsecops-sentinel-api-key';
 
+/**
+ * Origin of the API.
+ *
+ * Deployed, the client and the API are separate origins - the client on Static
+ * Web Apps, the API on App Service - and nothing rewrites between them. Static
+ * Web Apps cannot proxy to an external backend on the Free tier; linked
+ * backends are a Standard-tier feature. So the origin is baked in at build time
+ * and the API allows it by name through Security:AllowedOrigins.
+ *
+ * Empty locally and under test, which leaves every path relative: the Vite dev
+ * proxy forwards them to the local API, and the tests match on the same
+ * relative strings.
+ */
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
+
+function resolve(path: string): string {
+  return `${apiBaseUrl}${path}`;
+}
+
 export function getStoredApiKey(): string {
   return sessionStorage.getItem(apiKeyStorageKey) ?? '';
 }
@@ -28,7 +47,7 @@ export function setStoredApiKey(value: string): void {
 }
 
 async function apiFetch(
-  input: RequestInfo | URL,
+  path: string,
   init: RequestInit = {},
 ): Promise<Response> {
   const headers = new Headers(init.headers);
@@ -38,7 +57,7 @@ async function apiFetch(
     headers.set('X-API-Key', apiKey);
   }
 
-  return fetch(input, {
+  return fetch(resolve(path), {
     ...init,
     headers,
   });
@@ -53,7 +72,9 @@ async function readJson<T>(response: Response): Promise<T> {
 }
 
 export async function getSecurityStatus(): Promise<ApiSecurityStatus> {
-  return readJson(await fetch('/api/security/status'));
+  // Deliberately not apiFetch: this is the call that asks whether a key is
+  // needed at all, so it must not send one.
+  return readJson(await fetch(resolve('/api/security/status')));
 }
 
 export async function getScenarios(): Promise<ScenarioSummary[]> {
