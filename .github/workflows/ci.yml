@@ -4,15 +4,23 @@ on:
   push:
     branches:
       - main
-      - "feature/**"
-      - "fix/**"
-      - "chore/**"
+    tags:
+      - "v*"
   pull_request:
     branches:
       - main
 
 permissions:
   contents: read
+
+#
+# Branch work is validated through its pull request. Running the same commit
+# again on push would double the Actions minutes consumed by every branch,
+# which matters on the Free plan allowance for private repositories.
+#
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   classify-changes:
@@ -31,19 +39,44 @@ jobs:
       - name: Determine whether build and tests are required
         id: changes
         shell: bash
+        #
+        # Workflow expressions are passed through the environment rather than
+        # interpolated into the script body. The values here are GitHub-supplied
+        # commit SHAs, but direct `${{ }}` expansion inside `run:` is the shell
+        # injection pattern this project's own GHA rules exist to discourage.
+        #
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
 
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            base="${{ github.event.pull_request.base.sha }}"
-            head="${{ github.event.pull_request.head.sha }}"
+          # A release tag always gets the full build and test suite.
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            echo "build-required=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base="$PR_BASE_SHA"
+            head="$PR_HEAD_SHA"
           else
-            base="${{ github.event.before }}"
-            head="${{ github.sha }}"
+            base="$PUSH_BEFORE_SHA"
+            head="$PUSH_HEAD_SHA"
 
             if [[ "$base" =~ ^0+$ ]]; then
               base="$(git rev-parse "${head}^" 2>/dev/null || true)"
             fi
+          fi
+
+          # A force-push can leave the recorded base commit unreachable once it
+          # has been garbage collected. Fall back to building rather than
+          # failing the job on an unresolvable diff.
+          if [[ -n "$base" ]] && ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base=""
           fi
 
           if [[ -z "$base" ]]; then
