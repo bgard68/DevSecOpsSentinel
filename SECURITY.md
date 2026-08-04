@@ -88,3 +88,13 @@ the old key.
 Do not open a public issue containing a live secret or exploit payload. Revoke
 any exposed credential first and report the issue privately to the repository
 owner.
+
+## Repository security controls
+
+Repository governance, workflow controls, dependency maintenance, enforced
+SHA pinning, platform limitations, and accepted residual risks are documented
+in [`docs/security/repository-security-policy.md`](docs/security/repository-security-policy.md).
+
+The repository currently compensates for unavailable private-repository
+GitHub Free controls with feature-branch discipline, green CI before merge,
+Gitleaks, Dependabot, vulnerability audits, and release-package verification.
