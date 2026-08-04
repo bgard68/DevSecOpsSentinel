@@ -3,24 +3,61 @@
 DevSecOps Sentinel uses Gitleaks as defense in depth while GitHub-native push
 protection is unavailable for the private repository.
 
-## CI protection
+## Authoritative control
 
-`.github/workflows/gitleaks.yml` scans the full Git history on:
+The GitHub Actions Gitleaks workflow is the repository-level backstop. It scans
+repository history on pushes, pull requests, manual runs, and scheduled runs.
 
-- pushes to `main` and `feature/**`;
-- pull requests targeting `main`;
-- manual workflow dispatch;
-- a weekly scheduled scan.
+The CI scan is authoritative because it runs independently of each developer's
+local machine and cannot be skipped with Git's `--no-verify` option.
 
-The workflow has read-only repository permissions. Both GitHub Actions are
-pinned to full commit SHAs.
+## Local pre-commit convenience
 
-## Local pre-commit protection
+The local Gitleaks hook is optional developer convenience. It provides earlier
+feedback before a commit is created, but it is not an enforcement boundary.
 
-The repository uses the standard `pre-commit` framework with Gitleaks pinned in
-`.pre-commit-config.yaml`.
+Important limitations:
 
-Install `pre-commit`, then run:
+- it must be installed separately in every clone;
+- it requires Python because this repository uses the standard `pre-commit`
+  framework for hook orchestration;
+- it can be bypassed intentionally with `git commit --no-verify`;
+- it may be absent on a developer or automation machine;
+- CI remains required even when the local hook is installed.
+
+The Python dependency is an explicit trade-off: the standard `pre-commit`
+framework provides repeatable installation, isolated hook environments, and a
+well-understood cross-platform workflow. A repository-local Git hook could
+avoid Python, but would require custom installation and maintenance while
+remaining equally bypassable.
+
+## Pinned hook revision
+
+`.pre-commit-config.yaml` pins the Gitleaks repository to the immutable
+40-character commit behind Gitleaks `v8.30.1`:
+
+```text
+83d9cd684c87d95d656c1458ef04895a7f1cbd8e
+```
+
+The version comment remains beside the SHA for readability. Updates must verify
+the upstream tag and replace the full commit SHA deliberately.
+
+## Install local protection
+
+Install `pre-commit` with one of the documented approaches:
+
+```powershell
+py -m pip install --user pre-commit
+```
+
+or:
+
+```powershell
+pipx install pre-commit
+```
+
+Then install the repository hook:
 
 ```powershell
 .\scripts\install-gitleaks-precommit.ps1
@@ -29,11 +66,11 @@ Install `pre-commit`, then run:
 Run every configured hook manually:
 
 ```powershell
-pre-commit run --all-files
+py -m pre_commit run --all-files
 ```
 
-The local hook is intentionally paired with CI because local Git hooks are
-developer-controlled and can be skipped.
+Using `py -m pre_commit` avoids relying on the Python Scripts directory being
+present on the current PowerShell `PATH`.
 
 ## Direct local scan
 
@@ -48,6 +85,20 @@ Scan every reachable commit:
 ```powershell
 .\scripts\run-gitleaks.ps1 -AllHistory
 ```
+
+## Screenshot review
+
+Binary screenshots are not a dependable secret-scanning surface. The
+`docs/assets/screenshots/` allowlist avoids false handling of generated binary
+assets, but it also means visible tokens in screenshots require manual review.
+
+Before committing or publishing screenshots, verify that they contain no:
+
+- API keys or tokens;
+- connection strings;
+- private repository URLs containing credentials;
+- user-specific secrets or environment values;
+- browser or terminal output exposing sensitive data.
 
 ## Responding to a finding
 
