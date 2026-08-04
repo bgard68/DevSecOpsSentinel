@@ -66,57 +66,30 @@ builder.Services.AddSingleton<
     ICorsPolicyProvider,
     DynamicCorsPolicyProvider>();
 
-int workflowRequestLimit =
-    builder.Configuration.GetValue<int?>(
-        "Operational:WorkflowRequestLimitPerMinute")
-    ?? 30;
+builder.Services
+    .AddOptions<OperationalOptions>()
+    .Bind(builder.Configuration.GetSection(OperationalOptions.SectionName));
 
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode =
         StatusCodes.Status429TooManyRequests;
 
-    // Reading from GitHub is cheaper than analysis but still leaves this
-    // deployment's installation token and IP as the caller of record against
-    // GitHub's own rate limits, so it is bounded separately rather than not at
-    // all.
+    // Both budgets are read from the request's own service provider rather than
+    // captured here. Reading them during startup froze the limit at whatever the
+    // base configuration said, so the documented setting could not actually be
+    // changed by a host that supplies configuration later.
     options.AddPolicy(
         "github-read",
-        httpContext =>
-            RateLimitPartition.GetFixedWindowLimiter(
-                GetRateLimitPartitionKey(
-                    httpContext,
-                    httpContext.RequestServices
-                        .GetRequiredService<
-                            IOptionsMonitor<ApiSecurityOptions>>()
-                        .CurrentValue
-                        .HeaderName),
-                _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = workflowRequestLimit * 4,
-                    Window = TimeSpan.FromMinutes(1),
-                    QueueLimit = 0,
-                    AutoReplenishment = true
-                }));
+        httpContext => CreatePartition(
+            httpContext,
+            operational => operational.GitHubReadLimitPerMinute));
 
     options.AddPolicy(
         "workflow-analysis",
-        httpContext =>
-            RateLimitPartition.GetFixedWindowLimiter(
-                GetRateLimitPartitionKey(
-                    httpContext,
-                    httpContext.RequestServices
-                        .GetRequiredService<
-                            IOptionsMonitor<ApiSecurityOptions>>()
-                        .CurrentValue
-                        .HeaderName),
-                _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = workflowRequestLimit,
-                    Window = TimeSpan.FromMinutes(1),
-                    QueueLimit = 0,
-                    AutoReplenishment = true
-                }));
+        httpContext => CreatePartition(
+            httpContext,
+            operational => operational.WorkflowRequestLimitPerMinute));
 });
 
 builder.Services.Configure<FormOptions>(options =>
@@ -793,6 +766,30 @@ app.MapPost(
     .RequireRateLimiting("workflow-analysis");
 
 app.Run();
+
+static RateLimitPartition<string> CreatePartition(
+    HttpContext httpContext,
+    Func<OperationalOptions, int> selectLimit)
+{
+    OperationalOptions operational = httpContext.RequestServices
+        .GetRequiredService<IOptionsMonitor<OperationalOptions>>()
+        .CurrentValue;
+
+    string headerName = httpContext.RequestServices
+        .GetRequiredService<IOptionsMonitor<ApiSecurityOptions>>()
+        .CurrentValue
+        .HeaderName;
+
+    return RateLimitPartition.GetFixedWindowLimiter(
+        GetRateLimitPartitionKey(httpContext, headerName),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = Math.Max(1, selectLimit(operational)),
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        });
+}
 
 static string GetRateLimitPartitionKey(
     HttpContext context,

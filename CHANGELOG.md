@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### Testing
+
+- Covered the rejection paths the API advertises but nothing exercised: 413 for
+  an oversized workflow, 429 when the request budget is exhausted, and 503 when
+  the GitHub integration is unconfigured. A boundary case just under the size
+  limit guards the other side of 413.
+- Made `smoke-test-api.ps1` able to start and stop the API itself with
+  `-StartApi`, and wired it into `run-all.ps1`. The suite previously required a
+  server somebody remembered to start, so it protected nothing automatically.
+  The gate forces OpenAI Mock and disables GitHub, so it never spends credits or
+  reaches the network; the live integrations keep their own opt-in scripts.
+
+### Fixed
+
+- Made the request budget configurable at runtime. `WorkflowRequestLimitPerMinute`
+  was read into a local while `Program.cs` executed, so configuration supplied
+  later in host building never reached the limiter. The setting was documented as
+  configurable but was fixed at whatever the base configuration said, and the
+  rejection path could not be reached without firing the full production budget.
+
 ## 1.2.0 — 2026-08-04
 
 ### Detection
