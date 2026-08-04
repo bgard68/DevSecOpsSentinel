@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Replaced "Enterprise-ready security operations" in the application header with
+  "GitHub Actions supply-chain analysis". The former was the only claim in the
+  project the work did not support: a single-developer analyser with no
+  deployment is not enterprise-ready, and the phrase invited a reader to
+  discount everything around it. The replacement names the domain the rules
+  actually cover — pinning, secrets, artifacts and runners are supply-chain
+  concerns — and states nothing that has to be taken on trust.
+- Split CI into separate API and frontend jobs, selected by which paths a change
+  touches. A frontend-only commit no longer builds and tests the .NET solution,
+  and an API-only commit no longer installs and builds the client. A change
+  spanning both still runs both, in one pipeline, so a contract that crosses the
+  boundary cannot be verified one half at a time.
+- Added a terminal `gate` job that always runs and reports the outcome of the
+  selective jobs. Branch protection cannot require a job that is sometimes
+  skipped, because a skipped required check blocks a merge rather than passing
+  it; requiring the gate keeps selective builds compatible with a protected
+  branch.
+
 ## 1.2.1 — 2026-08-04
 
 ### Tooling

@@ -226,7 +226,7 @@ function App() {
   }
 
   return <main className="app-shell">
-    <header className="topbar"><div className="brand-lockup"><div className="brand-mark" aria-hidden="true">DS</div><div><span className="eyebrow">v{__APP_VERSION__} · Enterprise-ready security operations</span><h1>DevSecOps Sentinel</h1><p>Detect, explain, preview, validate, and export secure GitHub Actions remediations without modifying repositories.</p></div></div>
+    <header className="topbar"><div className="brand-lockup"><div className="brand-mark" aria-hidden="true">DS</div><div><span className="eyebrow">v{__APP_VERSION__} · GitHub Actions supply-chain analysis</span><h1>DevSecOps Sentinel</h1><p>Detect, explain, preview, validate, and export secure GitHub Actions remediations without modifying repositories.</p></div></div>
       <div className="status-cluster" aria-label="Application status"><div className="status-item"><span className="status-dot status-dot-online" />API connected</div><div className="status-item"><span className="status-dot status-dot-ai" />AI: {aiModeLabel}</div><div className={`status-item ${githubReady ? 'status-item-safe' : ''}`}>GitHub: {githubReady ? 'Read-only connected' : 'Unavailable'}</div>{securityStatus?.required && <button type="button" className="status-item status-action" onClick={clearApiKey}>Lock API</button>}</div></header>
 
     <section className="hero-strip" aria-label="Security boundaries"><div><strong>Read-only GitHub App</strong><span>No branches, commits, or pull requests.</span></div><div><strong>Repository allowlist</strong><span>Only explicitly permitted repositories appear.</span></div><div><strong>Deterministic first</strong><span>AI remains optional and advisory.</span></div></section>
