@@ -1,3 +1,9 @@
+export interface ApiSecurityStatus {
+  required: boolean;
+  headerName: string;
+  sessionOnlyBrowserKey: boolean;
+}
+
 export interface ScenarioSummary {
   id: string;
   name: string;
@@ -24,6 +30,7 @@ export interface WorkflowPatch {
   proposedContent: string;
   appliedRuleIds: string[];
   proposedContentIsValid: boolean;
+  referenceResolutionWarnings: string[];
 }
 
 export interface WorkflowAnalysisResult {

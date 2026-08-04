@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using DevSecOpsSentinel.Application;
 using DevSecOpsSentinel.Domain;
@@ -9,11 +10,15 @@ public sealed class OpenAiWorkflowAiProvider : IWorkflowAiProvider
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly OpenAiOptions _options;
+    private readonly ILogger<OpenAiWorkflowAiProvider> _logger;
     private readonly ChatClient? _client;
 
-    public OpenAiWorkflowAiProvider(OpenAiOptions options)
+    public OpenAiWorkflowAiProvider(
+        OpenAiOptions options,
+        ILogger<OpenAiWorkflowAiProvider> logger)
     {
         _options = options;
+        _logger = logger;
         if (!string.IsNullOrWhiteSpace(options.ApiKey))
         {
             _client = new ChatClient(options.Model, options.ApiKey);
@@ -102,13 +107,30 @@ public sealed class OpenAiWorkflowAiProvider : IWorkflowAiProvider
                 true,
                 "Live");
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception)
+            when (!cancellationToken.IsCancellationRequested)
         {
-            return AiExplanationFactory.CreateFallback(analysis, "Live", "The OpenAI request timed out.");
+            _logger.LogWarning(
+                exception,
+                "OpenAI request timed out for workflow {FileName}.",
+                analysis.FileName);
+
+            return AiExplanationFactory.CreateFallback(
+                analysis,
+                "Live",
+                "The OpenAI request timed out.");
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            return AiExplanationFactory.CreateFallback(analysis, "Live", "The OpenAI provider was unavailable.");
+            _logger.LogWarning(
+                exception,
+                "OpenAI request failed for workflow {FileName}.",
+                analysis.FileName);
+
+            return AiExplanationFactory.CreateFallback(
+                analysis,
+                "Live",
+                "The OpenAI provider was unavailable.");
         }
     }
 

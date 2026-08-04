@@ -1,5 +1,6 @@
 import type {
   AiStatus,
+  ApiSecurityStatus,
   ScenarioDetail,
   ScenarioSummary,
   WorkflowAnalysisResult,
@@ -11,6 +12,38 @@ import type {
   GitHubWorkflowSummary,
 } from './models';
 
+const apiKeyStorageKey = 'devsecops-sentinel-api-key';
+
+export function getStoredApiKey(): string {
+  return sessionStorage.getItem(apiKeyStorageKey) ?? '';
+}
+
+export function setStoredApiKey(value: string): void {
+  const normalized = value.trim();
+  if (normalized) {
+    sessionStorage.setItem(apiKeyStorageKey, normalized);
+  } else {
+    sessionStorage.removeItem(apiKeyStorageKey);
+  }
+}
+
+async function apiFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const apiKey = getStoredApiKey();
+
+  if (apiKey) {
+    headers.set('X-API-Key', apiKey);
+  }
+
+  return fetch(input, {
+    ...init,
+    headers,
+  });
+}
+
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const problem = await response.json().catch(() => ({ title: 'Request failed' }));
@@ -19,20 +52,24 @@ async function readJson<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export async function getSecurityStatus(): Promise<ApiSecurityStatus> {
+  return readJson(await fetch('/api/security/status'));
+}
+
 export async function getScenarios(): Promise<ScenarioSummary[]> {
-  return readJson(await fetch('/api/scenarios'));
+  return readJson(await apiFetch('/api/scenarios'));
 }
 
 export async function getScenario(id: string): Promise<ScenarioDetail> {
-  return readJson(await fetch(`/api/scenarios/${encodeURIComponent(id)}`));
+  return readJson(await apiFetch(`/api/scenarios/${encodeURIComponent(id)}`));
 }
 
 export async function getAiStatus(): Promise<AiStatus> {
-  return readJson(await fetch('/api/ai/status'));
+  return readJson(await apiFetch('/api/ai/status'));
 }
 
 export async function analyzeWorkflow(fileName: string, content: string): Promise<WorkflowAnalysisResult> {
-  return readJson(await fetch('/api/workflows/analyze', {
+  return readJson(await apiFetch('/api/workflows/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fileName, content }),
@@ -44,24 +81,23 @@ export async function explainWorkflow(
   content: string,
   useAi: boolean,
 ): Promise<WorkflowExplanationResult> {
-  return readJson(await fetch('/api/workflows/explain', {
+  return readJson(await apiFetch('/api/workflows/explain', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fileName, content, useAi }),
   }));
 }
 
-
 export async function getGitHubStatus(): Promise<GitHubConnectionStatus> {
-  return readJson(await fetch('/api/github/status'));
+  return readJson(await apiFetch('/api/github/status'));
 }
 
 export async function getGitHubRepositories(): Promise<GitHubRepositorySummary[]> {
-  return readJson(await fetch('/api/github/repositories'));
+  return readJson(await apiFetch('/api/github/repositories'));
 }
 
 export async function getGitHubWorkflows(owner: string, repository: string): Promise<GitHubWorkflowSummary[]> {
-  return readJson(await fetch(`/api/github/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/workflows`));
+  return readJson(await apiFetch(`/api/github/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/workflows`));
 }
 
 export async function getGitHubWorkflowContent(
@@ -72,7 +108,7 @@ export async function getGitHubWorkflowContent(
 ): Promise<GitHubWorkflowFile> {
   const query = new URLSearchParams({ path });
   if (reference) query.set('reference', reference);
-  return readJson(await fetch(`/api/github/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/workflows/content?${query}`));
+  return readJson(await apiFetch(`/api/github/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/workflows/content?${query}`));
 }
 
 export async function analyzeGitHubWorkflow(
@@ -82,7 +118,7 @@ export async function analyzeGitHubWorkflow(
   reference: string | undefined,
   useAi: boolean,
 ): Promise<GitHubAnalysisResponse> {
-  return readJson(await fetch(`/api/github/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/analyze`, {
+  return readJson(await apiFetch(`/api/github/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, reference, useAi }),
@@ -90,7 +126,7 @@ export async function analyzeGitHubWorkflow(
 }
 
 export async function getRemediationReport(fileName: string, content: string): Promise<import('./models').RemediationReport> {
-  return readJson(await fetch('/api/workflows/remediation', {
+  return readJson(await apiFetch('/api/workflows/remediation', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fileName, content }),
@@ -98,7 +134,7 @@ export async function getRemediationReport(fileName: string, content: string): P
 }
 
 export async function downloadRemediationExport(fileName: string, content: string, format: string): Promise<void> {
-  const response = await fetch(`/api/workflows/remediation/export/${encodeURIComponent(format)}`, {
+  const response = await apiFetch(`/api/workflows/remediation/export/${encodeURIComponent(format)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fileName, content }),
@@ -111,6 +147,8 @@ export async function downloadRemediationExport(fileName: string, content: strin
   const downloadName = match ? decodeURIComponent(match[1].replace(/\"/g, '')) : `${fileName}-remediation.${extension}`;
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
-  anchor.href = url; anchor.download = downloadName; anchor.click();
+  anchor.href = url;
+  anchor.download = downloadName;
+  anchor.click();
   URL.revokeObjectURL(url);
 }

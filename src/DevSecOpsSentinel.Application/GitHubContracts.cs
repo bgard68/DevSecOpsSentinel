@@ -34,7 +34,8 @@ public sealed record GitHubConnectionStatus(
 
 public interface IGitHubRepositoryReader
 {
-    Task<IReadOnlyList<GitHubRepositorySummary>> GetRepositoriesAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<GitHubRepositorySummary>> GetRepositoriesAsync(
+        CancellationToken cancellationToken);
 
     Task<IReadOnlyList<GitHubWorkflowSummary>> GetWorkflowsAsync(
         string owner,
@@ -54,9 +55,30 @@ public interface IGitHubInstallationTokenProvider
     Task<string> GetTokenAsync(CancellationToken cancellationToken);
 }
 
+public enum ActionReferenceResolutionStatus
+{
+    Resolved,
+    Unsupported,
+    NotFound,
+    RateLimited,
+    AuthenticationFailed,
+    NetworkUnavailable,
+    Failed
+}
+
+public sealed record ActionReferenceResolutionResult(
+    ActionReferenceResolutionStatus Status,
+    string? CommitSha,
+    string Message)
+{
+    public bool IsResolved =>
+        Status == ActionReferenceResolutionStatus.Resolved &&
+        !string.IsNullOrWhiteSpace(CommitSha);
+}
+
 public interface IWorkflowActionReferenceResolver
 {
-    Task<string?> ResolveCommitShaAsync(
+    Task<ActionReferenceResolutionResult> ResolveAsync(
         string actionReference,
         CancellationToken cancellationToken);
 }

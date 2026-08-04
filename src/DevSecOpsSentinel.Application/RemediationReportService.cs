@@ -83,40 +83,91 @@ public sealed class RemediationReportService(
         string[] before = Normalize(original).Split('\n');
         string[] after = Normalize(proposed).Split('\n');
 
-        List<string> diff =
-        [
-            "--- original",
-            "+++ proposed"
-        ];
+        int[,] lengths = BuildLongestCommonSubsequenceTable(
+            before,
+            after);
 
-        int length = Math.Max(before.Length, after.Length);
+        List<string> body = [];
+        int beforeIndex = 0;
+        int afterIndex = 0;
 
-        for (int index = 0; index < length; index++)
+        while (beforeIndex < before.Length &&
+               afterIndex < after.Length)
         {
-            string? oldLine =
-                index < before.Length ? before[index] : null;
-
-            string? newLine =
-                index < after.Length ? after[index] : null;
-
-            if (oldLine == newLine)
+            if (string.Equals(
+                before[beforeIndex],
+                after[afterIndex],
+                StringComparison.Ordinal))
             {
-                diff.Add($" {oldLine}");
-                continue;
+                body.Add($" {before[beforeIndex]}");
+                beforeIndex++;
+                afterIndex++;
             }
-
-            if (oldLine is not null)
+            else if (
+                lengths[beforeIndex + 1, afterIndex] >=
+                lengths[beforeIndex, afterIndex + 1])
             {
-                diff.Add($"-{oldLine}");
+                body.Add($"-{before[beforeIndex]}");
+                beforeIndex++;
             }
-
-            if (newLine is not null)
+            else
             {
-                diff.Add($"+{newLine}");
+                body.Add($"+{after[afterIndex]}");
+                afterIndex++;
             }
         }
 
+        while (beforeIndex < before.Length)
+        {
+            body.Add($"-{before[beforeIndex++]}");
+        }
+
+        while (afterIndex < after.Length)
+        {
+            body.Add($"+{after[afterIndex++]}");
+        }
+
+        List<string> diff =
+        [
+            "--- a/workflow.yml",
+            "+++ b/workflow.yml",
+            $"@@ -1,{before.Length} +1,{after.Length} @@"
+        ];
+
+        diff.AddRange(body);
         return diff;
+    }
+
+    private static int[,] BuildLongestCommonSubsequenceTable(
+        IReadOnlyList<string> before,
+        IReadOnlyList<string> after)
+    {
+        int[,] lengths =
+            new int[before.Count + 1, after.Count + 1];
+
+        for (int beforeIndex = before.Count - 1;
+             beforeIndex >= 0;
+             beforeIndex--)
+        {
+            for (int afterIndex = after.Count - 1;
+                 afterIndex >= 0;
+                 afterIndex--)
+            {
+                lengths[beforeIndex, afterIndex] =
+                    string.Equals(
+                        before[beforeIndex],
+                        after[afterIndex],
+                        StringComparison.Ordinal)
+                    ? lengths[
+                        beforeIndex + 1,
+                        afterIndex + 1] + 1
+                    : Math.Max(
+                        lengths[beforeIndex + 1, afterIndex],
+                        lengths[beforeIndex, afterIndex + 1]);
+            }
+        }
+
+        return lengths;
     }
 
     private static string Normalize(string value) =>

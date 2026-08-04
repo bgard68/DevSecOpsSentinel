@@ -169,3 +169,39 @@ summary { cursor: pointer; color: #b9c5d3; font-weight: 800; }
 .remediation-change header { display:flex; justify-content:space-between; gap:1rem; }
 .diff-view { background:#080c12; border:1px solid #30363d; border-radius:12px; padding:1rem; max-height:420px; overflow:auto; white-space:pre; }
 @media (max-width: 800px) { .remediation-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
+
+.access-gate {
+  width: min(34rem, 100%);
+  margin: 4rem auto;
+  padding: 1.4rem;
+  border: 1px solid #244766;
+  border-radius: 1rem;
+  background: linear-gradient(145deg, #0b1a29, #101724);
+  box-shadow: 0 1.2rem 4rem #0007;
+}
+
+.access-gate h2 {
+  margin: .35rem 0 .5rem;
+  color: #f5f8fc;
+}
+
+.access-gate p {
+  color: #9aa8ba;
+  line-height: 1.55;
+}
+
+.access-gate form {
+  display: grid;
+  gap: .65rem;
+  margin-top: 1rem;
+}
+
+.status-action {
+  cursor: pointer;
+}
+
+.status-action:hover {
+  border-color: #60a5fa;
+  color: #dbeafe;
+}
