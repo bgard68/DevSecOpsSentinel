@@ -37,7 +37,10 @@ internal static class YamlWorkflowStructureReader
             structure = new WorkflowStructure(
                 ReadTriggers(root),
                 ReadPermissions(Value(root, "permissions")),
-                ReadJobs(Value(root, "jobs") as YamlMappingNode));
+                ReadJobs(Value(root, "jobs") as YamlMappingNode))
+            {
+                PermissionsDeclared = Value(root, "permissions") is not null
+            };
 
             return true;
         }
@@ -144,6 +147,7 @@ internal static class YamlWorkflowStructureReader
                 ReadPermissions(Value(job, "permissions")),
                 ReadSteps(Value(job, "steps") as YamlSequenceNode))
             {
+                PermissionsDeclared = Value(job, "permissions") is not null,
                 RunsOn = FlattenScalar(runsOn),
                 RunsOnLine = runsOn is null ? null : LineOf(runsOn),
                 Uses = (Value(job, "uses") as YamlScalarNode)?.Value,

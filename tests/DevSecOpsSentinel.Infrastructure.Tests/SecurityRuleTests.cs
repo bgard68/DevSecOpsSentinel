@@ -1118,6 +1118,100 @@ public sealed class SecurityRuleTests
     }
 
     [Theory]
+    [InlineData("permissions: {}")]
+    [InlineData("permissions:")]
+    public void An_empty_permissions_block_is_a_declaration_not_an_omission(
+        string declaration)
+    {
+        // permissions: {} grants the job token nothing at all - the strongest
+        // position a workflow can take. Counting entries cannot tell it apart
+        // from saying nothing, and reporting it sent the reader to a
+        // recommendation that would have WIDENED the grant to read-all.
+        //
+        // Found by pointing this project's rules at this project's own
+        // workflows; the keep-warm job needs no token and says so.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Keep warm",
+            "on: push",
+            declaration,
+            "jobs:",
+            "  ping:",
+            "    runs-on: ubuntu-latest",
+            "    timeout-minutes: 5"
+        ]));
+
+        Assert.Empty(new UndeclaredPermissionsRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Id_token_write_is_not_reported_as_excessive()
+    {
+        // It grants no repository access - only the right to ask for an OIDC
+        // token - and it is what removes a stored publish credential from a
+        // deploy pipeline. Reporting it argued against the safer design, and
+        // the offered fix (read-all) would have broken the deployment.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Deploy",
+            "on: push",
+            "jobs:",
+            "  deploy:",
+            "    runs-on: ubuntu-latest",
+            "    timeout-minutes: 15",
+            "    permissions:",
+            "      contents: read",
+            "      id-token: write"
+        ]));
+
+        Assert.Empty(new ExcessivePermissionsRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void A_specific_write_grant_other_than_id_token_is_still_reported()
+    {
+        // The exemption is for id-token alone, not for named write grants
+        // generally.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Deploy",
+            "on: push",
+            "jobs:",
+            "  deploy:",
+            "    runs-on: ubuntu-latest",
+            "    timeout-minutes: 15",
+            "    permissions:",
+            "      contents: write",
+            "      id-token: write"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new ExcessivePermissionsRule().Evaluate(workflow));
+
+        Assert.Equal("GHA002", finding.RuleId);
+        Assert.Equal(8, finding.LineNumber);
+    }
+
+    [Fact]
+    public void An_empty_permissions_block_grants_nothing_to_report_as_excessive()
+    {
+        // The companion check: saying nothing is not the same as granting
+        // something, so GHA002 must stay quiet here too.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Keep warm",
+            "on: push",
+            "permissions: {}",
+            "jobs:",
+            "  ping:",
+            "    runs-on: ubuntu-latest",
+            "    timeout-minutes: 5"
+        ]));
+
+        Assert.Empty(new ExcessivePermissionsRule().Evaluate(workflow));
+    }
+
+    [Theory]
     [InlineData("self-hosted")]
     [InlineData("[self-hosted, linux, x64]")]
     public void Self_hosted_runner_on_a_pull_request_trigger_is_reported(

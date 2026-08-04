@@ -17,6 +17,15 @@ public sealed record WorkflowStructure(
 {
     public static WorkflowStructure Empty { get; } = new([], [], []);
 
+    /// <summary>
+    /// Whether a workflow-level <c>permissions</c> key is present at all.
+    ///
+    /// Distinct from <see cref="Permissions"/> being empty: <c>permissions: {}</c>
+    /// is a key with no entries, and it is the most restrictive grant GitHub
+    /// accepts. Counting entries cannot tell the two apart.
+    /// </summary>
+    public bool PermissionsDeclared { get; init; }
+
     /// <summary>Workflow-level and job-level permissions together.</summary>
     public IEnumerable<WorkflowPermissionEntry> AllPermissions =>
         Permissions.Concat(Jobs.SelectMany(job => job.Permissions));
@@ -27,10 +36,15 @@ public sealed record WorkflowStructure(
     /// <summary>
     /// True when neither the workflow nor any job states what the job token may
     /// do, leaving the grant to the repository default.
+    ///
+    /// Presence of the key is what counts, not the number of entries under it.
+    /// A workflow that says <c>permissions: {}</c> has stated its position in
+    /// the strongest available terms; reporting that as undeclared would advise
+    /// widening a grant that is already empty.
     /// </summary>
     public bool DeclaresNoPermissions =>
-        Permissions.Count == 0 &&
-        Jobs.All(job => job.Permissions.Count == 0);
+        !PermissionsDeclared &&
+        Jobs.All(job => !job.PermissionsDeclared);
 
     public bool HasTrigger(string name) =>
         Triggers.Any(trigger =>
@@ -53,6 +67,12 @@ public sealed record WorkflowStructuredJob(
     IReadOnlyList<WorkflowPermissionEntry> Permissions,
     IReadOnlyList<WorkflowStructuredStep> Steps)
 {
+    /// <summary>
+    /// Whether this job has a <c>permissions</c> key, empty or otherwise. See
+    /// <see cref="WorkflowStructure.PermissionsDeclared"/>.
+    /// </summary>
+    public bool PermissionsDeclared { get; init; }
+
     /// <summary>The <c>runs-on</c> value, with sequence forms joined by a comma.</summary>
     public string? RunsOn { get; init; }
 
