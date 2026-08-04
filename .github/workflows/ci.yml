@@ -28,7 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      build-required: ${{ steps.changes.outputs.build-required }}
+      api: ${{ steps.changes.outputs.api }}
+      frontend: ${{ steps.changes.outputs.frontend }}
 
     steps:
       - name: Checkout repository
@@ -36,7 +37,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Determine whether build and tests are required
+      - name: Determine which parts of the repository changed
         id: changes
         shell: bash
         #
@@ -54,9 +55,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          # A release tag always gets the full build and test suite.
+          emit() {
+            echo "api=$1" >> "$GITHUB_OUTPUT"
+            echo "frontend=$2" >> "$GITHUB_OUTPUT"
+            echo "api=$1 frontend=$2"
+          }
+
+          # A release tag builds everything, whatever the diff says. A release is
+          # a claim about the whole repository, not about what last changed.
           if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
-            echo "build-required=true" >> "$GITHUB_OUTPUT"
+            emit true true
             exit 0
           fi
 
@@ -80,26 +88,41 @@ jobs:
           fi
 
           if [[ -z "$base" ]]; then
-            echo "build-required=true" >> "$GITHUB_OUTPUT"
+            emit true true
             exit 0
           fi
 
-          build_required=false
+          api=false
+          frontend=false
 
           while IFS= read -r path; do
             [[ -z "$path" ]] && continue
 
             case "$path" in
+              # Documentation changes nothing that either side builds.
               *.md|docs/*|LICENSE|.gitignore|.gitattributes)
                 ;;
+
+              # The client and everything it owns.
+              src/devsecops-sentinel-web/*)
+                frontend=true
+                ;;
+
+              # Server projects, tests, and the build files that govern them.
+              src/DevSecOpsSentinel.*|tests/*|*.sln|*.slnx|Directory.*.props|global.json)
+                api=true
+                ;;
+
+              # Workflow, tooling and repository-level configuration can affect
+              # either side, so neither is assumed safe to skip.
               *)
-                build_required=true
-                break
+                api=true
+                frontend=true
                 ;;
             esac
           done < <(git diff --name-only "$base" "$head")
 
-          echo "build-required=$build_required" >> "$GITHUB_OUTPUT"
+          emit "$api" "$frontend"
 
   repository-validation:
     name: Repository and Release Validation
@@ -120,12 +143,12 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-release-package.ps1
 
-  build-test-audit:
-    name: Build, Test and Dependency Audit
+  api:
+    name: API Build, Test and Audit
     needs:
       - classify-changes
       - repository-validation
-    if: needs.classify-changes.outputs.build-required == 'true'
+    if: needs.classify-changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -137,13 +160,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
         with:
           dotnet-version: "10.0.x"
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: src/devsecops-sentinel-web/package-lock.json
 
       - name: Verify Central Package Management
         shell: pwsh
@@ -172,22 +188,81 @@ jobs:
           --vulnerable
           --include-transitive
 
-      - name: Install frontend dependencies
+  frontend:
+    name: Frontend Build, Test and Audit
+    needs:
+      - classify-changes
+      - repository-validation
+    if: needs.classify-changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
         working-directory: src/devsecops-sentinel-web
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/devsecops-sentinel-web/package-lock.json
+
+      - name: Install dependencies
         run: npm ci
 
-      - name: Verify frontend toolchain
-        working-directory: src/devsecops-sentinel-web
+      - name: Verify toolchain
         run: npm run verify:toolchain
 
-      - name: Run frontend tests
-        working-directory: src/devsecops-sentinel-web
+      - name: Run tests
         run: npm test
 
-      - name: Audit frontend packages
-        working-directory: src/devsecops-sentinel-web
+      - name: Audit packages
         run: npm audit --audit-level=high
 
-      - name: Build frontend
-        working-directory: src/devsecops-sentinel-web
+      - name: Build
         run: npm run build
+
+  #
+  # A single job that always runs and reflects the outcome of the two that do
+  # not. Branch protection cannot require a job that is sometimes skipped: a
+  # skipped required check blocks the merge rather than passing it. Requiring
+  # this one instead keeps selective builds compatible with a protected branch,
+  # which the repository will want if it is ever made public.
+  #
+  gate:
+    name: CI Gate
+    if: always()
+    needs:
+      - classify-changes
+      - repository-validation
+      - api
+      - frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Confirm no required job failed
+        shell: bash
+        env:
+          RESULTS: >-
+            ${{ needs.classify-changes.result }}
+            ${{ needs.repository-validation.result }}
+            ${{ needs.api.result }}
+            ${{ needs.frontend.result }}
+        run: |
+          set -euo pipefail
+          echo "Job results: $RESULTS"
+
+          for result in $RESULTS; do
+            # "skipped" is a pass: it means the change did not touch that side.
+            if [[ "$result" != "success" && "$result" != "skipped" ]]; then
+              echo "A required job reported '$result'."
+              exit 1
+            fi
+          done
+
+          echo "All required jobs succeeded or were not applicable."
