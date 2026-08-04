@@ -13,8 +13,8 @@ public sealed class RequestTelemetryMiddleware(RequestDelegate next, ILogger<Req
             double elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             logger.LogInformation(
                 "HTTP {Method} {Path} returned {StatusCode} in {ElapsedMilliseconds:F1} ms",
-                context.Request.Method,
-                context.Request.Path,
+                LogSanitizer.ForLog(context.Request.Method),
+                LogSanitizer.ForLog(context.Request.Path),
                 context.Response.StatusCode,
                 elapsedMs);
         }

@@ -205,19 +205,31 @@ public sealed class WorkflowParser : IWorkflowParser
             indicator = indicator[..commentIndex];
         }
 
-        indicator = indicator.Trim();
-
-        return indicator.Length == 0 ||
-            indicator is "+" or "-" ||
-            (indicator.Length == 1 &&
-             indicator[0] is >= '1' and <= '9') ||
-            (indicator.Length == 2 &&
-             ((indicator[0] is '+' or '-') &&
-              indicator[1] is >= '1' and <= '9')) ||
-            (indicator.Length == 2 &&
-             indicator[0] is >= '1' and <= '9' &&
-             indicator[1] is '+' or '-');
+        return IsValidBlockScalarIndicator(indicator.Trim());
     }
+
+    /// <summary>
+    /// Validates what may follow a <c>|</c> or <c>&gt;</c>: an optional explicit
+    /// indentation digit and an optional chomping indicator, in either order.
+    /// So "", "-", "+", "2", "2-" and "-2" are all valid, and "2-3" is not.
+    /// </summary>
+    private static bool IsValidBlockScalarIndicator(string indicator) =>
+        indicator.Length switch
+        {
+            0 => true,
+            1 => IsChomping(indicator[0]) || IsIndentation(indicator[0]),
+            2 => (IsChomping(indicator[0]) && IsIndentation(indicator[1])) ||
+                 (IsIndentation(indicator[0]) && IsChomping(indicator[1])),
+            _ => false
+        };
+
+    private static bool IsChomping(char character) =>
+        character is '+' or '-';
+
+    // Zero is not a valid explicit indentation indicator in YAML.
+    private static bool IsIndentation(char character) =>
+        character is >= '1' and <= '9';
+
 
     private static IReadOnlyList<string> ParseTriggers(
         IReadOnlyList<WorkflowLine> lines)

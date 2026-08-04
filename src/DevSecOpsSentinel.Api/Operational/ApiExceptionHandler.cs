@@ -22,16 +22,16 @@ public sealed class ApiExceptionHandler(
         {
             logger.LogWarning(
                 "Rejected malformed request for {Method} {Path}",
-                httpContext.Request.Method,
-                httpContext.Request.Path);
+                LogSanitizer.ForLog(httpContext.Request.Method),
+                LogSanitizer.ForLog(httpContext.Request.Path));
         }
         else
         {
             logger.LogError(
                 exception,
                 "Unhandled request failure for {Method} {Path}",
-                httpContext.Request.Method,
-                httpContext.Request.Path);
+                LogSanitizer.ForLog(httpContext.Request.Method),
+                LogSanitizer.ForLog(httpContext.Request.Path));
         }
 
         httpContext.Response.StatusCode = statusCode;

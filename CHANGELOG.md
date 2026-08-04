@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Fixed
+
+- Sanitised request-supplied values before they reach a log entry. The request
+  path is chosen by the caller, and a path containing a carriage return or line
+  feed splits one entry into several, so a caller could fabricate entries that
+  look as though the application emitted them. Control characters are now
+  replaced rather than removed, so a request that attempted the injection is
+  still visible as having done so, and an over-long value is truncated.
+- Refused a scenario file name that resolves outside the scenario directory.
+  `Path.Combine` silently discards the directory when a later argument is rooted
+  or climbs out of it. The metadata ships with the application rather than
+  arriving from a request, so this is defence in depth — but a bundled file is
+  exactly the kind of input that stops being trusted once someone makes it
+  configurable.
+- Disposed the request message in `GitHubRepositoryReader`. The two other GitHub
+  clients already did; this one was the exception.
+- Rewrote the block scalar indicator check as three named predicates. It
+  expressed a simple rule — an optional indentation digit and an optional
+  chomping indicator, in either order — as one condition that could not be read.
+
 ### Testing
 
 - Ran the API smoke suite in CI. It previously ran only from `run-all.ps1` on a
