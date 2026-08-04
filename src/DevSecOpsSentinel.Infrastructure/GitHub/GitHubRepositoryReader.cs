@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json.Serialization;
 using DevSecOpsSentinel.Application;
+using DevSecOpsSentinel.Domain;
 
 namespace DevSecOpsSentinel.Infrastructure.GitHub;
 
@@ -102,7 +103,7 @@ public sealed class GitHubRepositoryReader(
         var request = new HttpRequestMessage(HttpMethod.Get, $"{options.ApiBaseUrl.TrimEnd('/')}{path}");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Accept.ParseAdd("application/vnd.github+json");
-        request.Headers.UserAgent.ParseAdd("DevSecOpsSentinel/0.4.0");
+        request.Headers.UserAgent.ParseAdd(ProductInfo.UserAgent);
         request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
         HttpClient httpClient =
             httpClientFactory.CreateClient("GitHub");

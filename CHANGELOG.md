@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — 2026-08-04
 
 ### Security and reliability
 
@@ -67,6 +67,14 @@
   paths carrying no hashes, with no generator and no consumer, and had drifted
   from the tracked tree. `git ls-files` reproduces it exactly and cannot go
   stale, and a release tag already commits to a tree hash.
+- Derived the product version from the assembly instead of repeating it as a
+  literal. It had appeared in five places and drifted to three different values:
+  the health endpoint and the SARIF tool descriptor reported `1.0.0` against a
+  `1.0.1` release, two GitHub `User-Agent` headers still said `0.4.0`, and the
+  application header advertised `v1.0`. `Directory.Build.props` is now the only
+  place a version is written, with the client reading `package.json` through
+  Vite.
+- Dropped the development `phase` field from the root and health responses.
 
 ## 1.0.0 — 2026-08-03
 
