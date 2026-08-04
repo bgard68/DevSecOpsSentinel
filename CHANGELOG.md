@@ -1,3 +1,5 @@
+# Changelog
+
 ## Unreleased
 
 ### Security and reliability
@@ -17,7 +19,26 @@
 - Rewrote `SECURITY.md` to describe the current trust boundaries.
 - Removed temporary implementation notes from the repository root.
 
-# Changelog
+### Build and release
+
+- Validated branch work through its pull request rather than on both the branch
+  push and the pull request, and added a concurrency group that cancels
+  superseded runs, to stay inside the Actions allowance a private repository
+  receives.
+- Triggered CI on `v*` tags, so the release-tag version comparison in
+  `verify-release-package.ps1` is actually reachable.
+- Passed workflow expressions through the environment instead of interpolating
+  them into a shell body, and stopped change classification aborting when a
+  force-push leaves the recorded base commit unreachable.
+- Stopped Dependabot proposing individually unmergeable major upgrades for the
+  frontend build toolchain, whose majors are coupled through peer dependencies.
+- Documented why `AssemblyVersion` is deliberately held at the major.minor
+  baseline, and why the screenshot item on the release checklist is the only
+  control covering a directory that secret scanning allowlists.
+- Removed `MANIFEST.txt`. It had been reduced to a hand-maintained list of file
+  paths carrying no hashes, with no generator and no consumer, and had drifted
+  from the tracked tree. `git ls-files` reproduces it exactly and cannot go
+  stale, and a release tag already commits to a tree hash.
 
 ## 1.0.0 — 2026-08-03
 
