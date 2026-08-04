@@ -20,7 +20,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
                 ["GitHub:AppId"] = "0",
                 ["GitHub:InstallationId"] = "0",
                 ["GitHub:PrivateKeyPath"] = string.Empty,
-                ["GitHub:AllowedRepositories:0"] = null
+                ["GitHub:AllowedRepositories:0"] = null,
+                ["Security:Mode"] = "Disabled",
+                ["Security:ApiKey"] = string.Empty
             });
         });
     }

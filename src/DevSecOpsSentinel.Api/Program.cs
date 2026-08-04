@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Threading.RateLimiting;
 using DevSecOpsSentinel.Api;
 using DevSecOpsSentinel.Api.Operational;
+using DevSecOpsSentinel.Api.Security;
 using DevSecOpsSentinel.Application;
 using DevSecOpsSentinel.Domain;
 using DevSecOpsSentinel.Infrastructure;
@@ -18,11 +19,41 @@ const int maximumWorkflowCharacters = 100_000;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 256 * 1024;
+});
+
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddOpenApi();
 builder.Services.AddOutputCache();
 builder.Services.AddMemoryCache();
+
+ApiSecurityOptions apiSecurityOptions = builder.Configuration
+    .GetSection(ApiSecurityOptions.SectionName)
+    .Get<ApiSecurityOptions>()
+    ?? new ApiSecurityOptions();
+
+apiSecurityOptions.Validate(builder.Environment.EnvironmentName);
+builder.Services.AddSingleton(apiSecurityOptions);
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("frontend", policy =>
+    {
+        if (apiSecurityOptions.AllowedOrigins.Length > 0)
+        {
+            policy
+                .WithOrigins(apiSecurityOptions.AllowedOrigins)
+                .WithMethods("GET", "POST")
+                .WithHeaders(
+                    "Content-Type",
+                    apiSecurityOptions.HeaderName,
+                    "X-Correlation-ID");
+        }
+    });
+});
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -129,12 +160,21 @@ if (app.Environment.IsDevelopment() ||
 }
 
 app.UseExceptionHandler();
+
+if (!app.Environment.IsDevelopment() &&
+    !app.Environment.IsEnvironment("Testing"))
+{
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<RequestTelemetryMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
+app.UseCors("frontend");
+app.UseMiddleware<ApiKeyAuthenticationMiddleware>();
 app.UseRateLimiter();
 app.UseOutputCache();
-app.UseHttpsRedirection();
 
 app.MapGet("/", () => Results.Ok(new
 {
