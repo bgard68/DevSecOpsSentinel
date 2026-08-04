@@ -86,12 +86,13 @@ public sealed class GitHubIntegrationTests
             new GitHubOptions(),
             new StubTokenProvider());
 
-        string? resolved =
-            await resolver.ResolveCommitShaAsync(
+        ActionReferenceResolutionResult resolved =
+            await resolver.ResolveAsync(
                 "actions/checkout@v4",
                 CancellationToken.None);
 
-        Assert.Equal(sha, resolved);
+        Assert.True(resolved.IsResolved);
+        Assert.Equal(sha, resolved.CommitSha);
     }
 
     [Fact]
@@ -106,12 +107,15 @@ public sealed class GitHubIntegrationTests
             new GitHubOptions(),
             new StubTokenProvider());
 
-        string? resolved =
-            await resolver.ResolveCommitShaAsync(
+        ActionReferenceResolutionResult resolved =
+            await resolver.ResolveAsync(
                 "actions/checkout@not-real",
                 CancellationToken.None);
 
-        Assert.Null(resolved);
+        Assert.False(resolved.IsResolved);
+        Assert.Equal(
+            ActionReferenceResolutionStatus.NotFound,
+            resolved.Status);
     }
 
 

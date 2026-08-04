@@ -86,3 +86,24 @@ pwsh -ExecutionPolicy Bypass
 ### GitHub configuration incomplete
 
 Verify all GitHub User Secrets and confirm that `GitHub:PrivateKeyPath` points to the exact PEM filename.
+
+
+## Protected deployment smoke tests
+
+For environments where API authentication is required:
+
+```powershell
+$env:DEVSECOPS_SENTINEL_API_KEY = "<deployment access key>"
+.\scripts\smoke-test-api.ps1 -BaseUrl "https://your-api.example"
+```
+
+The same environment variable is supported by the live GitHub and OpenAI smoke
+tests. Never place the key in a script or commit it to the repository.
+
+Authentication must be `Required` in every environment except `Development`
+and `Testing`. Configure `AllowedHosts` and `Security:AllowedOrigins` with the
+actual deployed API and frontend hosts.
+
+Action reference resolution is disabled by default. Set
+`GitHub:ResolveActionReferences=true` only when the deployment should make
+outbound GitHub Git Data API calls during remediation generation.

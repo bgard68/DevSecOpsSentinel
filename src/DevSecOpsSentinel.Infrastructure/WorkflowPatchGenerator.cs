@@ -1,13 +1,15 @@
 using System.Text.RegularExpressions;
 using DevSecOpsSentinel.Application;
 using DevSecOpsSentinel.Domain;
+using DevSecOpsSentinel.Infrastructure.GitHub;
 
 namespace DevSecOpsSentinel.Infrastructure;
 
 public sealed partial class WorkflowPatchGenerator(
     IWorkflowParser parser,
     IEnumerable<IWorkflowSecurityRule> rules,
-    IWorkflowActionReferenceResolver actionReferenceResolver)
+    IWorkflowActionReferenceResolver actionReferenceResolver,
+    GitHubOptions gitHubOptions)
     : IWorkflowPatchGenerator
 {
     private readonly IReadOnlyList<IWorkflowSecurityRule> _rules =
@@ -29,6 +31,7 @@ public sealed partial class WorkflowPatchGenerator(
             .ToHashSet();
 
         List<WorkflowFinding> appliedFindings = [];
+        List<string> resolutionWarnings = [];
 
         foreach (WorkflowFinding finding in findings
             .Where(finding =>
@@ -53,22 +56,32 @@ public sealed partial class WorkflowPatchGenerator(
                     continue;
                 }
 
-                string? resolvedSha =
-                    await actionReferenceResolver.ResolveCommitShaAsync(
-                        match.Groups["reference"].Value,
+                string actionReference =
+                    match.Groups["reference"].Value;
+
+                if (!gitHubOptions.ResolveActionReferences)
+                {
+                    resolutionWarnings.Add(
+                        $"Line {finding.LineNumber}: '{actionReference}' was not pinned because GitHub action reference resolution is disabled.");
+                    continue;
+                }
+
+                ActionReferenceResolutionResult resolution =
+                    await actionReferenceResolver.ResolveAsync(
+                        actionReference,
                         cancellationToken);
 
-                if (!IsFullCommitSha(resolvedSha))
+                if (!resolution.IsResolved ||
+                    !IsFullCommitSha(resolution.CommitSha))
                 {
-                    // Fail closed: leave the movable reference unchanged,
-                    // do not claim the finding was remediated, and do not
-                    // reduce its risk score.
+                    resolutionWarnings.Add(
+                        $"Line {finding.LineNumber}: {resolution.Message}");
                     continue;
                 }
 
                 lines[index] =
                     lines[index][..match.Groups["version"].Index] +
-                    resolvedSha +
+                    resolution.CommitSha +
                     lines[index][
                         (match.Groups["version"].Index +
                          match.Groups["version"].Length)..];
@@ -138,7 +151,10 @@ public sealed partial class WorkflowPatchGenerator(
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(id => id, StringComparer.Ordinal)
                 .ToArray(),
-            proposedContentIsValid);
+            proposedContentIsValid)
+        {
+            ReferenceResolutionWarnings = resolutionWarnings
+        };
     }
 
     private bool ValidateProposedContent(

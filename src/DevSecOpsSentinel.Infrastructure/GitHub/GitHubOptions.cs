@@ -5,14 +5,13 @@ public sealed class GitHubOptions
     public const string SectionName = "GitHub";
 
     public bool Enabled { get; init; }
+    public bool ResolveActionReferences { get; init; }
     public long AppId { get; init; }
     public long InstallationId { get; init; }
     public string PrivateKeyPath { get; init; } = string.Empty;
     public string ApiBaseUrl { get; init; } = "https://api.github.com";
     public string[] AllowedRepositories { get; init; } = [];
 
-    // Pure configuration check. Filesystem availability is validated
-    // explicitly by startup/readiness code and token creation.
     public bool IsConfigured =>
         Enabled &&
         AppId > 0 &&

@@ -1,3 +1,20 @@
+## Unreleased
+
+### Security and reliability
+
+- Made GitHub action tag-to-SHA resolution an explicit opt-in.
+- Removed live GitHub dependencies from integration tests.
+- Added session-only browser API-key entry and authenticated smoke-test support.
+- Defaulted authentication to required outside Development and Testing.
+- Partitioned workflow rate limits by hashed API key or remote IP.
+- Replaced per-request configuration binding with `IOptionsMonitor`.
+- Surfaced action-reference resolution failures in remediation patches.
+- Expanded sanitizer coverage, added CSP, logged external-provider failures,
+  aligned the default OpenAI model, restricted default hosts, and generated
+  applicable unified diffs with hunk headers.
+- Rewrote `SECURITY.md` to describe the current trust boundaries.
+- Removed temporary implementation notes from the repository root.
+
 # Changelog
 
 ## 1.0.0 — 2026-08-03

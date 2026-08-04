@@ -1,6 +1,7 @@
 using DevSecOpsSentinel.Application;
 using DevSecOpsSentinel.Domain;
 using DevSecOpsSentinel.Infrastructure;
+using DevSecOpsSentinel.Infrastructure.GitHub;
 using DevSecOpsSentinel.Infrastructure.Rules;
 
 namespace DevSecOpsSentinel.Infrastructure.Tests;
@@ -168,7 +169,8 @@ public sealed class SecurityRuleTests
                 _parser,
                 CreateRules(),
                 new StubActionReferenceResolver(
-                    "1111111111111111111111111111111111111111"))
+                    "1111111111111111111111111111111111111111"),
+                CreateGitHubOptions())
                 .GenerateAsync(
                     workflow,
                     findings,
@@ -330,7 +332,8 @@ public sealed class SecurityRuleTests
                 _parser,
                 rules,
                 new StubActionReferenceResolver(
-                    "1111111111111111111111111111111111111111"))
+                    "1111111111111111111111111111111111111111"),
+                CreateGitHubOptions())
                 .GenerateAsync(
                     workflow,
                     findings,
@@ -376,7 +379,8 @@ public sealed class SecurityRuleTests
                 _parser,
                 rules,
                 new StubActionReferenceResolver(
-                    "1111111111111111111111111111111111111111"))
+                    "1111111111111111111111111111111111111111"),
+                CreateGitHubOptions())
                 .GenerateAsync(
                     workflow,
                     findings,
@@ -384,6 +388,12 @@ public sealed class SecurityRuleTests
 
         Assert.False(patch.ProposedContentIsValid);
     }
+
+    private static GitHubOptions CreateGitHubOptions() =>
+        new()
+        {
+            ResolveActionReferences = true
+        };
 
     private static IReadOnlyList<IWorkflowSecurityRule> CreateRules() =>
     [
@@ -419,6 +429,45 @@ public sealed class SecurityRuleTests
 
 
     [Fact]
+    public async Task Action_reference_resolution_is_disabled_by_default()
+    {
+        string content = string.Join('\n',
+        [
+            "name: Build",
+            "on:",
+            "  push:",
+            "jobs:",
+            "  build:",
+            "    timeout-minutes: 15",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@v4"
+        ]);
+
+        ParsedWorkflow workflow = Parse(content);
+        IReadOnlyList<IWorkflowSecurityRule> rules = CreateRules();
+
+        WorkflowPatch patch =
+            await new WorkflowPatchGenerator(
+                _parser,
+                rules,
+                new StubActionReferenceResolver(
+                    "1111111111111111111111111111111111111111"),
+                new GitHubOptions())
+                .GenerateAsync(
+                    workflow,
+                    rules.SelectMany(rule => rule.Evaluate(workflow)).ToArray(),
+                    CancellationToken.None);
+
+        Assert.Contains(
+            "actions/checkout@v4",
+            patch.ProposedContent,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("GHA001", patch.AppliedRuleIds);
+        Assert.Single(patch.ReferenceResolutionWarnings);
+    }
+
+    [Fact]
     public async Task Unresolved_action_reference_is_not_rewritten_or_counted_as_applied()
     {
         string content = string.Join('\n',
@@ -445,7 +494,8 @@ public sealed class SecurityRuleTests
             await new WorkflowPatchGenerator(
                 _parser,
                 rules,
-                new StubActionReferenceResolver(null))
+                new StubActionReferenceResolver(null),
+                CreateGitHubOptions())
                 .GenerateAsync(
                     workflow,
                     findings,
@@ -470,10 +520,19 @@ public sealed class SecurityRuleTests
         string? resolvedSha)
         : IWorkflowActionReferenceResolver
     {
-        public Task<string?> ResolveCommitShaAsync(
+        public Task<ActionReferenceResolutionResult> ResolveAsync(
             string actionReference,
             CancellationToken cancellationToken) =>
-            Task.FromResult(resolvedSha);
+            Task.FromResult(
+                resolvedSha is null
+                    ? new ActionReferenceResolutionResult(
+                        ActionReferenceResolutionStatus.NotFound,
+                        null,
+                        "The reference was not found.")
+                    : new ActionReferenceResolutionResult(
+                        ActionReferenceResolutionStatus.Resolved,
+                        resolvedSha,
+                        "Resolved."));
     }
 
     private ParsedWorkflow Parse(string content)

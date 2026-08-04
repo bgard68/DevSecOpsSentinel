@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using DevSecOpsSentinel.Api;
@@ -9,10 +11,12 @@ using DevSecOpsSentinel.Infrastructure;
 using DevSecOpsSentinel.Infrastructure.Ai;
 using DevSecOpsSentinel.Infrastructure.GitHub;
 using DevSecOpsSentinel.Infrastructure.Rules;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 
 const int maximumWorkflowCharacters = 100_000;
@@ -30,42 +34,51 @@ builder.Services.AddOpenApi();
 builder.Services.AddOutputCache();
 builder.Services.AddMemoryCache();
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("frontend", policy =>
-    {
-        policy
-            .SetIsOriginAllowed(origin =>
-            {
-                ApiSecurityOptions current =
-                    builder.Configuration
-                        .GetSection(ApiSecurityOptions.SectionName)
-                        .Get<ApiSecurityOptions>()
-                    ?? new ApiSecurityOptions();
+builder.Services
+    .AddOptions<ApiSecurityOptions>()
+    .Bind(
+        builder.Configuration.GetSection(
+            ApiSecurityOptions.SectionName))
+    .Validate(
+        options =>
+            options.IsValidForEnvironment(
+                builder.Environment.EnvironmentName),
+        "API authentication must be Required outside Development/Testing, and required keys must contain at least 32 characters.")
+    .ValidateOnStart();
 
-                return current.AllowedOrigins.Contains(
-                    origin,
-                    StringComparer.OrdinalIgnoreCase);
-            })
-            .WithMethods("GET", "POST")
-            .WithHeaders(
-                "Content-Type",
-                "X-API-Key",
-                "X-Correlation-ID");
-    });
-});
+builder.Services.AddCors();
+builder.Services.AddSingleton<
+    ICorsPolicyProvider,
+    DynamicCorsPolicyProvider>();
+
+int workflowRequestLimit =
+    builder.Configuration.GetValue<int?>(
+        "Operational:WorkflowRequestLimitPerMinute")
+    ?? 30;
 
 builder.Services.AddRateLimiter(options =>
 {
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.RejectionStatusCode =
+        StatusCodes.Status429TooManyRequests;
 
-    options.AddFixedWindowLimiter("workflow-analysis", limiter =>
-    {
-        limiter.PermitLimit = 30;
-        limiter.Window = TimeSpan.FromMinutes(1);
-        limiter.QueueLimit = 0;
-        limiter.AutoReplenishment = true;
-    });
+    options.AddPolicy(
+        "workflow-analysis",
+        httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                GetRateLimitPartitionKey(
+                    httpContext,
+                    httpContext.RequestServices
+                        .GetRequiredService<
+                            IOptionsMonitor<ApiSecurityOptions>>()
+                        .CurrentValue
+                        .HeaderName),
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = workflowRequestLimit,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                }));
 });
 
 builder.Services.Configure<FormOptions>(options =>
@@ -113,10 +126,13 @@ OpenAiOptions openAiOptions = builder.Configuration
 
 builder.Services.AddSingleton(openAiOptions);
 
-builder.Services.AddSingleton<IWorkflowAiProvider>(_ =>
+builder.Services.AddSingleton<IWorkflowAiProvider>(services =>
     openAiOptions.Mode.ToUpperInvariant() switch
     {
-        "LIVE" => new OpenAiWorkflowAiProvider(openAiOptions),
+        "LIVE" => new OpenAiWorkflowAiProvider(
+            openAiOptions,
+            services.GetRequiredService<
+                ILogger<OpenAiWorkflowAiProvider>>()),
         "DISABLED" => new DisabledWorkflowAiProvider(),
         _ => new MockWorkflowAiProvider()
     });
@@ -151,14 +167,6 @@ builder.Services.AddSingleton<
     GitHubActionReferenceResolver>();
 
 WebApplication app = builder.Build();
-
-ApiSecurityOptions configuredSecurity =
-    app.Configuration
-        .GetSection(ApiSecurityOptions.SectionName)
-        .Get<ApiSecurityOptions>()
-    ?? new ApiSecurityOptions();
-
-configuredSecurity.Validate(app.Environment.EnvironmentName);
 
 if (app.Environment.IsDevelopment() ||
     app.Environment.IsEnvironment("Testing"))
@@ -205,6 +213,21 @@ app.MapGet("/api/health", () => Results.Ok(new
     version = "1.0.0",
     phase = "F"
 }));
+
+app.MapGet(
+    "/api/security/status",
+    (IOptionsMonitor<ApiSecurityOptions> optionsMonitor) =>
+    {
+        ApiSecurityOptions security =
+            optionsMonitor.CurrentValue;
+
+        return Results.Ok(new
+        {
+            required = security.IsRequired,
+            headerName = security.HeaderName,
+            sessionOnlyBrowserKey = true
+        });
+    });
 
 app.MapGet("/api/health/live", () => Results.Ok(new
 {
@@ -271,6 +294,7 @@ app.MapGet(
     "/api/github/status",
     async (
         IGitHubRepositoryReader reader,
+        ILogger<Program> logger,
         CancellationToken cancellationToken) =>
     {
         if (!gitHubOptions.Enabled)
@@ -309,8 +333,12 @@ app.MapGet(
                 "Connected using a short-lived GitHub App " +
                 "installation token."));
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            logger.LogWarning(
+                exception,
+                "GitHub status check failed.");
+
             return Results.Ok(new GitHubConnectionStatus(
                 true,
                 true,
@@ -718,6 +746,25 @@ app.MapPost(
     .RequireRateLimiting("workflow-analysis");
 
 app.Run();
+
+static string GetRateLimitPartitionKey(
+    HttpContext context,
+    string apiKeyHeaderName)
+{
+    string? apiKey =
+        context.Request.Headers[apiKeyHeaderName].FirstOrDefault();
+
+    if (!string.IsNullOrWhiteSpace(apiKey))
+    {
+        byte[] hash = SHA256.HashData(
+            Encoding.UTF8.GetBytes(apiKey));
+
+        return $"key:{Convert.ToHexString(hash)}";
+    }
+
+    return
+        $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+}
 
 static IResult? ValidateWorkflowRequest(
     AnalyzeWorkflowRequest? request,

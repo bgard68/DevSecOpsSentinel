@@ -1,22 +1,20 @@
-using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace DevSecOpsSentinel.Api.Security;
 
 public sealed class ApiKeyAuthenticationMiddleware(
     RequestDelegate next,
-    IConfiguration configuration,
+    IOptionsMonitor<ApiSecurityOptions> optionsMonitor,
     IWebHostEnvironment environment,
     ILogger<ApiKeyAuthenticationMiddleware> logger)
 {
     public async Task InvokeAsync(HttpContext context)
     {
-        ApiSecurityOptions options = configuration
-            .GetSection(ApiSecurityOptions.SectionName)
-            .Get<ApiSecurityOptions>()
-            ?? new ApiSecurityOptions();
+        ApiSecurityOptions options = optionsMonitor.CurrentValue;
 
         if (!options.IsRequired ||
             IsPublicRequest(context.Request.Path))
@@ -48,7 +46,8 @@ public sealed class ApiKeyAuthenticationMiddleware(
     private bool IsPublicRequest(PathString path)
     {
         if (path == "/" ||
-            path.StartsWithSegments("/api/health"))
+            path.StartsWithSegments("/api/health") ||
+            path == "/api/security/status")
         {
             return true;
         }

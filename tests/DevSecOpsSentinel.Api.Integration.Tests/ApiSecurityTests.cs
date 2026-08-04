@@ -1,3 +1,4 @@
+using DevSecOpsSentinel.Api.Security;
 using System.Net;
 using System.Net.Http.Json;
 
@@ -15,6 +16,7 @@ public sealed class ApiSecurityTests(
     [InlineData("/api/health")]
     [InlineData("/api/health/live")]
     [InlineData("/api/health/ready")]
+    [InlineData("/api/security/status")]
     [InlineData("/openapi/v1.json")]
     [InlineData("/scalar")]
     public async Task Public_endpoints_do_not_require_api_key(
@@ -128,4 +130,20 @@ public sealed class ApiSecurityTests(
 
         Assert.Equal(HttpStatusCode.OK, authorized.StatusCode);
     }
+
+    [Fact]
+    public void Disabled_security_is_rejected_outside_development_and_testing()
+    {
+        ApiSecurityOptions options = new()
+        {
+            Mode = ApiSecurityOptions.DisabledMode
+        };
+
+        Assert.True(options.IsValidForEnvironment("Development"));
+        Assert.True(options.IsValidForEnvironment("Testing"));
+        Assert.False(options.IsValidForEnvironment("Staging"));
+        Assert.False(options.IsValidForEnvironment("Demo"));
+        Assert.False(options.IsValidForEnvironment("Production"));
+    }
+
 }

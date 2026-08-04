@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   analyzeGitHubWorkflow,
   analyzeWorkflow,
+  getSecurityStatus,
+  getStoredApiKey,
+  setStoredApiKey,
   explainWorkflow,
   getAiStatus,
   getGitHubRepositories,
@@ -15,6 +18,7 @@ import {
 } from './api';
 import type {
   AiStatus,
+  ApiSecurityStatus,
   GitHubConnectionStatus,
   GitHubRepositorySummary,
   GitHubWorkflowFile,
@@ -50,6 +54,9 @@ function CodePanel({ title, subtitle, content, tone }: { title: string; subtitle
 }
 
 function App() {
+  const [securityStatus, setSecurityStatus] = useState<ApiSecurityStatus | null>(null);
+  const [apiKeyDraft, setApiKeyDraft] = useState('');
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(() => Boolean(getStoredApiKey()));
   const [sourceMode, setSourceMode] = useState<SourceMode>('simulation');
   const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -71,13 +78,27 @@ function App() {
   const [remediation, setRemediation] = useState<RemediationReport | null>(null);
 
   useEffect(() => {
-    Promise.all([getScenarios(), getAiStatus(), getGitHubStatus()])
-      .then(([items, status, github]) => {
-        setScenarios(items); setAiStatus(status); setGitHubStatus(github);
-        if (items.length > 0) setSelectedId(items[0].id);
+    getSecurityStatus()
+      .then((status) => {
+        setSecurityStatus(status);
+
+        if (status.required && !apiKeyConfigured) {
+          return;
+        }
+
+        return Promise.all([getScenarios(), getAiStatus(), getGitHubStatus()])
+          .then(([items, ai, github]) => {
+            setScenarios(items);
+            setAiStatus(ai);
+            setGitHubStatus(github);
+            if (items.length > 0) setSelectedId(items[0].id);
+          });
       })
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Application data could not be loaded.'));
-  }, []);
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error
+          ? reason.message
+          : 'Application data could not be loaded.'));
+  }, [apiKeyConfigured]);
 
   useEffect(() => {
     if (sourceMode !== 'simulation' || !selectedId) return;
@@ -118,6 +139,28 @@ function App() {
       .finally(() => setIsLoading(false));
   }, [selectedWorkflowPath, selectedRepository, sourceMode, repositories]);
 
+  function unlockApi(event: React.FormEvent) {
+    event.preventDefault();
+    if (!apiKeyDraft.trim()) {
+      setError('Enter the API access key.');
+      return;
+    }
+
+    setStoredApiKey(apiKeyDraft);
+    setApiKeyConfigured(true);
+    setApiKeyDraft('');
+    setError('');
+  }
+
+  function clearApiKey() {
+    setStoredApiKey('');
+    setApiKeyConfigured(false);
+    setScenarios([]);
+    setAiStatus(null);
+    setGitHubStatus(null);
+    resetResults();
+  }
+
   function resetResults() { setResult(null); setExplanation(null); setRemediation(null); setActiveResultTab('findings'); setError(''); }
 
   async function submit(event: React.FormEvent) {
@@ -147,10 +190,44 @@ function App() {
   const aiModeLabel = aiStatus ? `${aiStatus.mode}${aiStatus.configured ? ' · configured' : ''}` : 'Loading';
   const selectedScenario = scenarios.find((scenario) => scenario.id === selectedId);
   const githubReady = Boolean(gitHubStatus?.connected);
+  const referenceResolutionWarnings =
+    result?.patch?.referenceResolutionWarnings ?? [];
+
+  if (securityStatus?.required && !apiKeyConfigured) {
+    return <main className="app-shell">
+      <header className="topbar">
+        <div className="brand-lockup">
+          <div className="brand-mark" aria-hidden="true">DS</div>
+          <div>
+            <span className="eyebrow">Protected portfolio deployment</span>
+            <h1>DevSecOps Sentinel</h1>
+            <p>Enter the deployment API key to open the analysis workspace.</p>
+          </div>
+        </div>
+      </header>
+      <section className="access-gate" aria-labelledby="access-gate-title">
+        <span className="panel-kicker">API authentication</span>
+        <h2 id="access-gate-title">Access key required</h2>
+        <p>The key is stored only in this browser tab. It is not embedded in the React bundle or written to local storage.</p>
+        <form onSubmit={unlockApi}>
+          <label htmlFor="api-access-key">{securityStatus.headerName}</label>
+          <input
+            id="api-access-key"
+            type="password"
+            autoComplete="off"
+            value={apiKeyDraft}
+            onChange={(event) => setApiKeyDraft(event.target.value)}
+          />
+          <button className="primary-action" type="submit">Open workspace</button>
+        </form>
+        {error && <p className="error">{error}</p>}
+      </section>
+    </main>;
+  }
 
   return <main className="app-shell">
     <header className="topbar"><div className="brand-lockup"><div className="brand-mark" aria-hidden="true">DS</div><div><span className="eyebrow">v1.0 · Enterprise-ready security operations</span><h1>DevSecOps Sentinel</h1><p>Detect, explain, preview, validate, and export secure GitHub Actions remediations without modifying repositories.</p></div></div>
-      <div className="status-cluster" aria-label="Application status"><div className="status-item"><span className="status-dot status-dot-online" />API connected</div><div className="status-item"><span className="status-dot status-dot-ai" />AI: {aiModeLabel}</div><div className={`status-item ${githubReady ? 'status-item-safe' : ''}`}>GitHub: {githubReady ? 'Read-only connected' : 'Unavailable'}</div></div></header>
+      <div className="status-cluster" aria-label="Application status"><div className="status-item"><span className="status-dot status-dot-online" />API connected</div><div className="status-item"><span className="status-dot status-dot-ai" />AI: {aiModeLabel}</div><div className={`status-item ${githubReady ? 'status-item-safe' : ''}`}>GitHub: {githubReady ? 'Read-only connected' : 'Unavailable'}</div>{securityStatus?.required && <button type="button" className="status-item status-action" onClick={clearApiKey}>Lock API</button>}</div></header>
 
     <section className="hero-strip" aria-label="Security boundaries"><div><strong>Read-only GitHub App</strong><span>No branches, commits, or pull requests.</span></div><div><strong>Repository allowlist</strong><span>Only explicitly permitted repositories appear.</span></div><div><strong>Deterministic first</strong><span>AI remains optional and advisory.</span></div></section>
 
@@ -186,7 +263,14 @@ function App() {
       {result && <><div className="summary-grid"><article className="metric-card"><span>Risk level</span><strong className={`risk-${riskLabel.toLowerCase().replace(' ', '-')}`}>{riskLabel}</strong><small>Deterministic findings</small></article><article className="metric-card"><span>Total findings</span><strong>{result.findingCount ?? findings.length}</strong><small>{countBySeverity(findings, 'Critical')} critical · {countBySeverity(findings, 'High')} high</small></article><article className="metric-card"><span>Auto-fixes</span><strong>{result.patch?.appliedRuleIds.length ?? 0}</strong><small>Proposed only</small></article><article className="metric-card"><span>Source</span><strong>{sourceMode === 'github' ? 'GitHub' : 'Local'}</strong><small>{sourceMode === 'github' ? 'Read-only retrieval' : 'Simulation scenario'}</small></article></div>
         <nav className="result-tabs" aria-label="Analysis result sections"><button type="button" className={activeResultTab === 'findings' ? 'active' : ''} onClick={() => setActiveResultTab('findings')}>Findings <span>{result.findingCount}</span></button><button type="button" disabled={!remediation} className={activeResultTab === 'remediation' ? 'active' : ''} onClick={() => setActiveResultTab('remediation')}>Remediation plan</button><button type="button" className={activeResultTab === 'comparison' ? 'active' : ''} onClick={() => setActiveResultTab('comparison')}>Workflow comparison</button><button type="button" disabled={!explanation} className={activeResultTab === 'advisor' ? 'active' : ''} onClick={() => setActiveResultTab('advisor')}>AI advisor</button></nav>
         {activeResultTab === 'findings' && <section className="findings-panel"><div className="section-heading"><div><span className="panel-kicker">Authoritative results</span><h2>Deterministic findings</h2></div><span className="result-badge">{result.findingCount === 0 ? 'Compliant' : 'Action required'}</span></div>{result.findings.length === 0 ? <div className="success-card"><strong>No configured rule violations were detected.</strong><span>The workflow passed all deterministic security checks.</span></div> : sortedFindings.map((finding) => <article className={`finding finding-${finding.severity.toLowerCase()}`} key={`${finding.ruleId}-${finding.lineNumber}`}><div className="finding-heading"><span className={`severity severity-${finding.severity.toLowerCase()}`}>{finding.severity}</span><code>{finding.ruleId}</code>{finding.lineNumber && <span>Line {finding.lineNumber}</span>}{finding.isAutomaticallyFixable && <span className="auto-fix-label">Proposed fix available</span>}</div><h3>{finding.title}</h3><p>{finding.description}</p><div className="recommendation"><strong>Recommended remediation</strong><span>{finding.recommendation}</span></div></article>)}</section>}
-        {activeResultTab === 'remediation' && remediation && <section className="remediation-panel"><div className="section-heading"><div><span className="panel-kicker">Validated remediation</span><h2>Risk reduction plan</h2></div><span className="result-badge">{remediation.riskReductionPercent}% reduction</span></div><div className="remediation-metrics"><article><span>Risk score</span><strong>{remediation.originalRiskScore} → {remediation.proposedRiskScore}</strong></article><article><span>Resolved</span><strong>{remediation.resolvedFindingCount}</strong></article><article><span>Remaining</span><strong>{remediation.remainingFindingCount}</strong></article><article><span>Patch</span><strong>{remediation.patchValid ? 'Valid' : 'Review'}</strong></article></div><div className="export-actions"><button type="button" onClick={() => downloadRemediationExport(fileName, content, 'markdown')}>Export Markdown</button><button type="button" onClick={() => downloadRemediationExport(fileName, content, 'sarif')}>Export SARIF</button><button type="button" onClick={() => downloadRemediationExport(fileName, content, 'json')}>Export JSON</button><button type="button" onClick={() => downloadRemediationExport(fileName, content, 'diff')}>Download patch</button><button type="button" onClick={() => downloadRemediationExport(fileName, content, 'html')}>Printable HTML/PDF</button></div>{remediation.changes.map((change) => <article className={`remediation-change ${change.resolved ? 'resolved' : 'remaining'}`} key={change.ruleId}><header><code>{change.ruleId}</code><span>{change.resolved ? 'Resolved by preview' : 'Still requires review'}</span></header><h3>{change.title}</h3><p>{change.recommendation}</p></article>)}<pre className="diff-view" tabIndex={0}><code>{remediation.unifiedDiff.join('\n')}</code></pre></section>}
+        {activeResultTab === 'remediation' && remediation && <section className="remediation-panel"><div className="section-heading"><div><span className="panel-kicker">Validated remediation</span><h2>Risk reduction plan</h2></div><span className="result-badge">{remediation.riskReductionPercent}% reduction</span></div><div className="remediation-metrics"><article><span>Risk score</span><strong>{remediation.originalRiskScore} → {remediation.proposedRiskScore}</strong></article><article><span>Resolved</span><strong>{remediation.resolvedFindingCount}</strong></article><article><span>Remaining</span><strong>{remediation.remainingFindingCount}</strong></article><article><span>Patch</span><strong>{remediation.patchValid ? 'Valid' : 'Review'}</strong></article></div>{referenceResolutionWarnings.length > 0 && (
+          <div className="warning">
+            <strong>Action SHA resolution</strong>
+            {referenceResolutionWarnings.map((warning) => (
+              <div key={warning}>{warning}</div>
+            ))}
+          </div>
+        )}<div className="export-actions"><button type="button" onClick={() => downloadRemediationExport(fileName, content, 'markdown')}>Export Markdown</button><button type="button" onClick={() => downloadRemediationExport(fileName, content, 'sarif')}>Export SARIF</button><button type="button" onClick={() => downloadRemediationExport(fileName, content, 'json')}>Export JSON</button><button type="button" onClick={() => downloadRemediationExport(fileName, content, 'diff')}>Download patch</button><button type="button" onClick={() => downloadRemediationExport(fileName, content, 'html')}>Printable HTML/PDF</button></div>{remediation.changes.map((change) => <article className={`remediation-change ${change.resolved ? 'resolved' : 'remaining'}`} key={change.ruleId}><header><code>{change.ruleId}</code><span>{change.resolved ? 'Resolved by preview' : 'Still requires review'}</span></header><h3>{change.title}</h3><p>{change.recommendation}</p></article>)}<pre className="diff-view" tabIndex={0}><code>{remediation.unifiedDiff.join('\n')}</code></pre></section>}
         {activeResultTab === 'advisor' && explanation && <section className="ai-panel"><div className="ai-panel-heading"><div><span className="eyebrow">AI Security Advisor</span><h2>{explanation.explanation.generatedByAi ? 'OpenAI explanation' : 'Deterministic fallback'}</h2></div><span className="mode-pill">{explanation.explanation.mode}</span></div><div className="advisor-notice"><strong>Advisory only</strong><span>AI cannot create findings, change severity, or apply patches.</span></div>{explanation.sensitiveContentRedacted && <p className="warning">Potentially sensitive values were redacted.</p>}<div className="advisor-summary"><span className="panel-kicker">Executive summary</span><p>{explanation.explanation.summary}</p></div>{explanation.explanation.findings.map((item) => <article className="ai-finding" key={item.ruleId}><header><code>{item.ruleId}</code><span>{item.confidence} confidence</span></header><p><strong>Why it matters</strong>{item.whyItMatters}</p><p><strong>Recommended action</strong>{item.recommendedAction}</p></article>)}</section>}
         {activeResultTab === 'comparison' && result.patch && <><div className="readonly-banner"><strong>Preview only</strong><span>Phase D does not write this patch back to GitHub.</span></div><div className="comparison"><CodePanel title="Original workflow" subtitle="Repository content" content={result.patch.originalContent} tone="original" /><CodePanel title="Proposed workflow" subtitle="Validated remediation preview" content={result.patch.proposedContent} tone="proposed" /></div></>}
       </>}

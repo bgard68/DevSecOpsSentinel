@@ -103,7 +103,9 @@ Open:
 
 ## Configuration
 
-The application runs without live external services.
+The deterministic analyzer and bundled scenarios run without live external
+services by default. OpenAI, GitHub repository access, and GitHub action
+tag-to-SHA resolution are separate explicit opt-ins.
 
 - OpenAI defaults to `Mock` mode.
 - GitHub integration defaults to disabled.
@@ -144,3 +146,39 @@ This package represents **v1.0.0**. See [CHANGELOG.md](CHANGELOG.md), [RELEASE-N
 MIT. See [LICENSE](LICENSE).
 
 - Automated integration tests run in an isolated Testing environment and always force OpenAI Mock mode, even when local User Secrets use Live mode.
+
+## Deployment authentication
+
+Authentication can be disabled only in `Development` and `Testing`. Staging,
+demo, preview, and production deployments must set:
+
+```text
+Security__Mode=Required
+Security__ApiKey=<random secret with at least 32 characters>
+Security__HeaderName=X-API-Key
+Security__AllowedOrigins__0=https://your-frontend.example
+AllowedHosts=your-api.example
+```
+
+The React application does not contain an API key. In a protected private demo,
+the operator enters the access key at runtime; it is retained only in browser
+`sessionStorage` for the current tab. Do not use this shared-key approach for a
+public multi-user application; use OIDC/OAuth instead.
+
+PowerShell smoke tests accept `-ApiKey` or the
+`DEVSECOPS_SENTINEL_API_KEY` environment variable.
+
+## Optional action SHA resolution
+
+`GitHub:ResolveActionReferences` defaults to `false`. With the default, local
+analysis and CI remain deterministic and do not call GitHub to resolve action
+tags. Enable it only when verified-SHA remediation is desired:
+
+```text
+GitHub__ResolveActionReferences=true
+```
+
+Resolution failures remain fail-closed: the original action reference is left
+unchanged, the finding is not counted as resolved, and the patch includes a
+diagnostic warning.
+

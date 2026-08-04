@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 
 const scenario = { id: 'sample', name: 'Sample', description: 'Sample', fileName: 'sample.yml' };
-const analysis = { fileName: 'sample.yml', isValid: true, validationErrors: [], findings: [], findingCount: 0, patch: { originalContent: 'x', proposedContent: 'x', appliedRuleIds: [], proposedContentIsValid: true } };
+const analysis = { fileName: 'sample.yml', isValid: true, validationErrors: [], findings: [], findingCount: 0, patch: { originalContent: 'x', proposedContent: 'x', appliedRuleIds: [], proposedContentIsValid: true, referenceResolutionWarnings: [] } };
 const repo = { owner: 'bgard68', name: 'DevSecOpsSentinel-Sandbox', fullName: 'bgard68/DevSecOpsSentinel-Sandbox', defaultBranch: 'main', isPrivate: true, htmlUrl: 'https://github.test/repo' };
 const workflow = { name: 'safe.yml', path: '.github/workflows/safe.yml', sha: '1234567890abcdef', htmlUrl: 'https://github.test/workflow' };
 const remediation = { fileName: 'sample.yml', originalAnalysis: analysis, proposedAnalysis: analysis, changes: [], unifiedDiff: ['--- original', '+++ proposed'], originalRiskScore: 0, proposedRiskScore: 0, riskReductionPercent: 0, patchValid: true, resolvedFindingCount: 0, remainingFindingCount: 0 };
@@ -12,6 +12,7 @@ const source = { owner: repo.owner, repository: repo.name, defaultBranch: 'main'
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    if (url === '/api/security/status') return Response.json({ required: false, headerName: 'X-API-Key', sessionOnlyBrowserKey: true });
     if (url === '/api/scenarios') return Response.json([scenario]);
     if (url === '/api/ai/status') return Response.json({ enabled: true, configured: false, provider: 'OpenAI', mode: 'Mock', model: 'gpt-5-mini', costProtection: { explicitRequestOnly: true, mockModeConsumesCredits: false } });
     if (url === '/api/github/status') return Response.json({ enabled: true, configured: true, connected: true, mode: 'ReadOnly', allowedRepositoryCount: 1, message: 'Connected.' });

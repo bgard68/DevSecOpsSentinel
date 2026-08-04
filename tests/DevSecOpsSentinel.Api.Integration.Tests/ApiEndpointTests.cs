@@ -168,6 +168,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
         string body = await response.Content.ReadAsStringAsync();
         Assert.Contains("riskReductionPercent", body);
         Assert.Contains("unifiedDiff", body);
+        Assert.Contains("@@ -1,", body);
         Assert.Contains("GHA001", body);
     }
 
@@ -215,6 +216,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
         Assert.Contains("phase-f-test", correlationValues!);
         Assert.True(response.Headers.Contains("X-Content-Type-Options"));
         Assert.True(response.Headers.Contains("X-Frame-Options"));
+        Assert.True(response.Headers.Contains("Content-Security-Policy"));
     }
 
     private sealed record AiStatusResponse(
