@@ -4,7 +4,9 @@ using System.Text.Json;
 
 namespace DevSecOpsSentinel.Infrastructure.GitHub;
 
-public sealed class GitHubAppJwtFactory(GitHubOptions options)
+public sealed class GitHubAppJwtFactory(
+    GitHubOptions options,
+    IGitHubPrivateKeySource privateKeySource)
 {
     public string CreateToken(DateTimeOffset now)
     {
@@ -28,7 +30,7 @@ public sealed class GitHubAppJwtFactory(GitHubOptions options)
 
         string unsignedToken = $"{header}.{payload}";
         using RSA rsa = RSA.Create();
-        rsa.ImportFromPem(File.ReadAllText(options.PrivateKeyPath));
+        rsa.ImportFromPem(privateKeySource.ReadPem());
         byte[] signature = rsa.SignData(
             Encoding.ASCII.GetBytes(unsignedToken),
             HashAlgorithmName.SHA256,

@@ -27,6 +27,7 @@ $required = @(
     'docs/ci-cd.md',
     'docs/scripts.md',
     'docs/operations.md',
+    'docs/deployment/azure.md',
     'docs/demo-guide.md',
     'docs/portfolio-walkthrough.md',
     'docs/release-checklist.md',

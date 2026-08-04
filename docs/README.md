@@ -23,6 +23,7 @@
 | [ci-cd.md](ci-cd.md) | The four workflows, path-selective builds, releasing |
 | [scripts.md](scripts.md) | Every script, what it does, why it exists |
 | [operations.md](operations.md) | Running it, health endpoints, rotation |
+| [deployment/azure.md](deployment/azure.md) | App Service, Key Vault, what degraded looks like |
 
 ## Integrations
 
