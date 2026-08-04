@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Tooling
+
+- Added `scripts/capture-screenshots.ps1`, which starts the API and the frontend,
+  drives the application with Playwright, and regenerates the product
+  screenshots. They had gone stale twice in a day — once when severity
+  serialization was fixed and the risk label changed, once when the release
+  version moved into the header — because they were captured by hand.
+- Fixed `Start-Process npm` in `start-local.ps1`. npm on Windows is a batch shim
+  rather than a Win32 image, so the call failed with "%1 is not a valid Win32
+  application" and the frontend never started.
+
 ### Testing
 
 - Covered the rejection paths the API advertises but nothing exercised: 413 for

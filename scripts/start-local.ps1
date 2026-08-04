@@ -5,7 +5,9 @@ $api = Start-Process dotnet -ArgumentList @(
     "run", "--project", "$Root\src\DevSecOpsSentinel.Api\DevSecOpsSentinel.Api.csproj"
 ) -PassThru
 
-$web = Start-Process npm -ArgumentList @("run", "dev") `
+# npm.cmd, not npm: Start-Process needs the real executable, and npm on Windows
+# is a batch shim rather than a Win32 image.
+$web = Start-Process npm.cmd -ArgumentList @("run", "dev") `
     -WorkingDirectory "$Root\src\devsecops-sentinel-web" -PassThru
 
 Write-Host "API process: $($api.Id)" -ForegroundColor Cyan
