@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using DevSecOpsSentinel.Application;
+using DevSecOpsSentinel.Domain;
 
 namespace DevSecOpsSentinel.Infrastructure.GitHub;
 
@@ -184,7 +185,7 @@ public sealed class GitHubActionReferenceResolver(
         request.Headers.Accept.ParseAdd(
             "application/vnd.github+json");
         request.Headers.UserAgent.ParseAdd(
-            "DevSecOpsSentinel/1.0.0");
+            ProductInfo.UserAgent);
         request.Headers.Add(
             "X-GitHub-Api-Version",
             "2022-11-28");

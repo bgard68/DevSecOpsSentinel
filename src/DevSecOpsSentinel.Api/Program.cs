@@ -217,8 +217,8 @@ app.UseOutputCache();
 app.MapGet("/", () => Results.Ok(new
 {
     status = "Running",
-    application = "DevSecOps Sentinel",
-    phase = "F",
+    application = ProductInfo.Name,
+    version = ProductInfo.Version,
     message =
         "Open /scalar for API documentation or " +
         "http://localhost:5173 for the React application."
@@ -227,9 +227,8 @@ app.MapGet("/", () => Results.Ok(new
 app.MapGet("/api/health", () => Results.Ok(new
 {
     status = "Healthy",
-    application = "DevSecOps Sentinel",
-    version = "1.0.0",
-    phase = "F"
+    application = ProductInfo.Name,
+    version = ProductInfo.Version
 }));
 
 app.MapGet(

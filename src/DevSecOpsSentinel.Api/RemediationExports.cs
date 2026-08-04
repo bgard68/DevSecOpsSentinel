@@ -42,7 +42,7 @@ internal static class RemediationExports
         {
             new
             {
-                tool = new { driver = new { name = "DevSecOps Sentinel", version = "1.0.0" } },
+                tool = new { driver = new { name = ProductInfo.Name, version = ProductInfo.Version } },
                 results = report.OriginalAnalysis.Findings.Select(finding => new
                 {
                     ruleId = finding.RuleId,
