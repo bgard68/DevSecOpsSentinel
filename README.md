@@ -15,12 +15,36 @@ Many security demos let an LLM decide what is vulnerable. DevSecOps Sentinel use
 3. OpenAI explains confirmed findings but cannot create findings, change severity, or apply patches.
 4. GitHub access is restricted to a read-only GitHub App and an application allowlist.
 
+The interesting part is not the explanations the model returns — the rules
+already carry a description and a recommendation, and the deterministic
+fallback produces comparable prose with no model call at all. It is the
+enforcement around the model. The response is constrained by a strict JSON
+schema, and the rule identifiers it returns must match the deterministic set
+exactly; a reply that invents a finding, drops one, or renames a rule is
+rejected and the fallback is used instead. The model cannot widen the result,
+only describe it.
+
+That constraint is the reason live AI can be enabled on a security tool at all,
+and it is what the project is actually demonstrating.
+
 ## Capabilities
 
 - Analyze embedded scenarios or real allowlisted GitHub workflows
-- Detect unpinned actions, excessive permissions, missing timeouts, unsafe
-  `pull_request_target` use, script injection through untrusted expressions,
-  persisted checkout credentials, and privileged checkout of pull-request code
+- Detect eleven classes of GitHub Actions weakness:
+
+  | Rule | Detects | Severity |
+  | --- | --- | --- |
+  | GHA001 | Action reference not pinned to a commit SHA | High |
+  | GHA002 | Excessive token permissions | High |
+  | GHA003 | Job without a timeout | Medium |
+  | GHA004 | `pull_request_target` trigger needing review | Critical |
+  | GHA005 | Untrusted expression interpolated into a script body | Critical |
+  | GHA006 | Checkout leaving the job token on the runner | Medium |
+  | GHA007 | Privileged trigger checking out pull-request code | Critical |
+  | GHA008 | Reusable workflow call forwarding every secret | High |
+  | GHA009 | No declared token permissions at any scope | Medium |
+  | GHA010 | Self-hosted runner reachable from a pull request | High |
+  | GHA011 | `workflow_run` job consuming an untrusted artifact | High |
 - Generate deterministic remediation previews and unified diffs
 - Re-analyze proposed YAML and report resolved and remaining findings
 - Calculate before/after risk reduction

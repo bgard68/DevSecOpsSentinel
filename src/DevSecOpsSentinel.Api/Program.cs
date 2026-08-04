@@ -76,6 +76,29 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode =
         StatusCodes.Status429TooManyRequests;
 
+    // Reading from GitHub is cheaper than analysis but still leaves this
+    // deployment's installation token and IP as the caller of record against
+    // GitHub's own rate limits, so it is bounded separately rather than not at
+    // all.
+    options.AddPolicy(
+        "github-read",
+        httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                GetRateLimitPartitionKey(
+                    httpContext,
+                    httpContext.RequestServices
+                        .GetRequiredService<
+                            IOptionsMonitor<ApiSecurityOptions>>()
+                        .CurrentValue
+                        .HeaderName),
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = workflowRequestLimit * 4,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                }));
+
     options.AddPolicy(
         "workflow-analysis",
         httpContext =>
@@ -126,6 +149,10 @@ builder.Services.AddSingleton<IWorkflowSecurityRule, UnsafePullRequestTargetRule
 builder.Services.AddSingleton<IWorkflowSecurityRule, ScriptInjectionRule>();
 builder.Services.AddSingleton<IWorkflowSecurityRule, PersistedCredentialsRule>();
 builder.Services.AddSingleton<IWorkflowSecurityRule, UntrustedCheckoutRule>();
+builder.Services.AddSingleton<IWorkflowSecurityRule, InheritedSecretsRule>();
+builder.Services.AddSingleton<IWorkflowSecurityRule, UndeclaredPermissionsRule>();
+builder.Services.AddSingleton<IWorkflowSecurityRule, SelfHostedRunnerRule>();
+builder.Services.AddSingleton<IWorkflowSecurityRule, ArtifactPoisoningRule>();
 builder.Services.AddSingleton<IWorkflowPatchGenerator, WorkflowPatchGenerator>();
 builder.Services.AddSingleton<IWorkflowAnalysisService, WorkflowAnalysisService>();
 builder.Services.AddSingleton<IRemediationReportService, RemediationReportService>();
@@ -382,7 +409,8 @@ app.MapGet(
 
         return Results.Ok(
             await reader.GetRepositoriesAsync(cancellationToken));
-    });
+    })
+    .RequireRateLimiting("github-read");
 
 app.MapGet(
     "/api/github/repositories/{owner}/{repository}/workflows",
@@ -407,7 +435,8 @@ app.MapGet(
                 owner,
                 repository,
                 cancellationToken));
-    });
+    })
+    .RequireRateLimiting("github-read");
 
 app.MapGet(
     "/api/github/repositories/{owner}/{repository}/workflows/content",
@@ -440,7 +469,8 @@ app.MapGet(
         return workflow is null
             ? Results.NotFound()
             : Results.Ok(workflow);
-    });
+    })
+    .RequireRateLimiting("github-read");
 
 app.MapPost(
     "/api/github/repositories/{owner}/{repository}/analyze",

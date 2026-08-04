@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased
+
+### Detection
+
+- Added GHA008, reporting a reusable workflow call that forwards the entire
+  secret store with `secrets: inherit`.
+- Added GHA009, reporting a workflow that declares no token permissions at any
+  scope and therefore inherits the repository default, which is a repository
+  setting rather than a property of the workflow.
+- Added GHA010, reporting a self-hosted runner reachable from a pull-request
+  trigger. Self-hosted runners persist between jobs, so anything contributor
+  code changes on one outlives the run.
+- Added GHA011, reporting a privileged `workflow_run` job that downloads an
+  artifact produced by the workflow that triggered it.
+- Added a bundled scenario for GHA007, which previously had no way to be
+  demonstrated in the application.
+
+### Fixed
+
+- Made the SARIF export conform to the specification. `level` carried severity
+  names such as `critical`, but the property is a closed enum of `none`, `note`,
+  `warning` and `error`, and the schema key was emitted as `schema` rather than
+  `$schema`. Every exported document was therefore rejected by SARIF consumers.
+  Findings now map onto the specified levels, the original severity travels as
+  `security-severity` on the rule, and a rule table is emitted so rule
+  identifiers resolve.
+- Included severity, line number, description and recommendation in the Markdown
+  and HTML exports. They previously listed only a rule identifier, a title and a
+  resolved flag, which is not enough to triage or locate anything reported.
+- Rate limited the GitHub read endpoints, which reach GitHub's API on the
+  deployment's behalf and were previously unbounded.
+
+### Changed
+
+- Removed the duplicate job model. Patch validation compared job counts taken
+  from indentation while the rules read the parsed structure, so the two could
+  disagree about what a job is.
+- Removed the `Informational` severity, which no rule produced but which
+  appeared in the client's ordering and in exports as a category that could
+  never be populated.
+- Described what the AI integration actually demonstrates: the enforcement
+  around the model rather than the prose it returns.
+
 ## 1.1.0 — 2026-08-04
 
 ### Security and reliability

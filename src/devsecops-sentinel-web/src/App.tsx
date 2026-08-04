@@ -30,7 +30,7 @@ import type {
   RemediationReport,
 } from './models';
 
-const severityOrder = ['Critical', 'High', 'Medium', 'Low', 'Informational'];
+const severityOrder = ['Critical', 'High', 'Medium', 'Low'];
 type SourceMode = 'simulation' | 'github';
 type ResultTab = 'findings' | 'remediation' | 'comparison' | 'advisor';
 

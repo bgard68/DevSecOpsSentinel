@@ -1,0 +1,19 @@
+name: Label pull request
+on:
+  pull_request_target:
+    types:
+      - opened
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Install and build the contributor's branch
+        run: npm ci && npm run build
