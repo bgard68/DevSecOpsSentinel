@@ -4,29 +4,95 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - 'LICENSE'
-      - '.gitignore'
-      - '.gitattributes'
       - "feature/**"
+      - "fix/**"
+      - "chore/**"
   pull_request:
     branches:
       - main
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - 'LICENSE'
-      - '.gitignore'
-      - '.gitattributes'
 
 permissions:
   contents: read
 
 jobs:
+  classify-changes:
+    name: Classify Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build-required: ${{ steps.changes.outputs.build-required }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Determine whether build and tests are required
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+          else
+            base="${{ github.event.before }}"
+            head="${{ github.sha }}"
+
+            if [[ "$base" =~ ^0+$ ]]; then
+              base="$(git rev-parse "${head}^" 2>/dev/null || true)"
+            fi
+          fi
+
+          if [[ -z "$base" ]]; then
+            echo "build-required=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          build_required=false
+
+          while IFS= read -r path; do
+            [[ -z "$path" ]] && continue
+
+            case "$path" in
+              *.md|docs/*|LICENSE|.gitignore|.gitattributes)
+                ;;
+              *)
+                build_required=true
+                break
+                ;;
+            esac
+          done < <(git diff --name-only "$base" "$head")
+
+          echo "build-required=$build_required" >> "$GITHUB_OUTPUT"
+
+  repository-validation:
+    name: Repository and Release Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Verify repository protection
+        shell: pwsh
+        run: ./scripts/check-repository.ps1
+
+      - name: Verify release package
+        shell: pwsh
+        run: ./scripts/verify-release-package.ps1
+
   build-test-audit:
     name: Build, Test and Dependency Audit
+    needs:
+      - classify-changes
+      - repository-validation
+    if: needs.classify-changes.outputs.build-required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -45,10 +111,6 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: src/devsecops-sentinel-web/package-lock.json
-
-      - name: Verify repository protection
-        shell: pwsh
-        run: ./scripts/check-repository.ps1
 
       - name: Verify Central Package Management
         shell: pwsh
@@ -96,7 +158,3 @@ jobs:
       - name: Build frontend
         working-directory: src/devsecops-sentinel-web
         run: npm run build
-
-      - name: Verify release package
-        shell: pwsh
-        run: ./scripts/verify-release-package.ps1
