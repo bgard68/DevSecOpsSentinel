@@ -5,15 +5,19 @@ on:
     branches:
       - main
       - "feature/**"
+
   pull_request:
     branches:
       - main
+
   workflow_dispatch:
+
   schedule:
     - cron: "23 7 * * 1"
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   secret-scan:
@@ -32,3 +36,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_ENABLE_COMMENTS: "false"
