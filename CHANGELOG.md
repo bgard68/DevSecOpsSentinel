@@ -1,8 +1,13 @@
 # Changelog
 
-## Unreleased
+## 1.2.3 — 2026-08-04
 
 ### Documentation
+
+- Recorded that screenshots are regenerated when the interface changes, not when
+  the version changes. The header renders the running version, so a release
+  always leaves the images showing the previous one; recapturing for a patch that
+  changed nothing visible is churn without information.
 
 - Restructured the documentation. The root now holds only what GitHub surfaces
   specially — README, SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, LICENSE — plus the

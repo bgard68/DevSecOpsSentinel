@@ -157,7 +157,7 @@ requests.
 
 1. `.\scripts\run-all.ps1` — the full local gate
 2. Bump `Directory.Build.props`, `package.json`, `package-lock.json`
-3. `.\scripts\capture-screenshots.ps1` if anything visible changed
+3. `.\scripts\capture-screenshots.ps1` **only if the interface changed** — the header shows the version, so images normally lag a release by design
 4. Date the changelog section
 5. Pull request, merge
 6. Tag `vX.Y.Z` — the tag build re-runs release verification **against the tag**
