@@ -176,7 +176,28 @@ summary { cursor: pointer; color: #b9c5d3; font-weight: 800; }
   /* min-height: 0 lets a flex child shrink below its content, which is what
      allows the panels to scroll rather than push the page taller. */
   .workspace { flex: 1 1 auto; min-height: 0; margin-bottom: 0; }
-  .control-panel, .results { min-height: 0; max-height: 100%; overflow-y: auto; }
+  .results { min-height: 0; max-height: 100%; overflow-y: auto; }
+
+  /*
+    The control panel does not scroll - the editor gives up the space instead.
+
+    Making the panel itself scrollable only moved the scrollbar: its content came
+    to 969px in a 443px slot, so reaching the Analyze button still meant
+    scrolling, which is the thing that was meant to stop. Everything except the
+    editor is a fixed row, and a code box is the one element that can take
+    whatever height is left and still be useful - scrolling inside a text editor
+    is what a text editor is for.
+  */
+  .control-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+  }
+  .control-panel > * { flex: 0 0 auto; }
+  .editor-shell { flex: 1 1 auto; min-height: 5rem; display: flex; flex-direction: column; }
+  .editor-shell textarea { flex: 1 1 auto; height: 100%; resize: none; }
 
   /* Sticky is for a page that scrolls; this one does not. */
   .control-panel { position: static; }
@@ -190,6 +211,37 @@ summary { cursor: pointer; color: #b9c5d3; font-weight: 800; }
   .topbar { margin-bottom: .8rem; }
   .hero-strip { margin-bottom: .7rem; }
   .source-switcher { margin: .7rem 0; }
+}
+
+/*
+  Laptop heights. The panel's fixed rows - heading, two labelled inputs, the AI
+  card, the button - came to 456px against a 434px slot at 1280x800, so the
+  editor could shrink to nothing and the Analyze button would still be below the
+  fold. The space has to come from somewhere other than the editor.
+
+  So this reclaims it from the page chrome and the panel's own padding: roughly
+  110px, which is the difference between the button being reachable and not.
+  Above 950px tall none of it applies, because there the roomier spacing fits.
+*/
+@media (min-width: 1024px) and (min-height: 640px) and (max-height: 950px) {
+  .app-shell { padding: .85rem 1.1rem; }
+  h1 { font-size: 1.75rem; line-height: 1.15; }
+  .topbar { margin-bottom: .5rem; gap: 1rem; }
+  .topbar p { font-size: .85rem; max-width: 44rem; }
+
+  .hero-strip { margin-bottom: .5rem; gap: .5rem; }
+  .hero-strip div { padding: .5rem .7rem; }
+  .hero-strip strong { font-size: .78rem; }
+  .hero-strip span { font-size: .7rem; }
+
+  .source-switcher { margin: .5rem 0; padding: .25rem; }
+  .source-switcher button { padding: .45rem .85rem; }
+
+  .control-panel { padding: .8rem; gap: .4rem; }
+  .panel-heading h2 { font-size: 1.1rem; }
+  .ai-control-card { padding: .55rem .7rem; }
+  select, input { padding: .5rem .6rem; }
+  .primary-action { padding: .6rem; }
 }
 
 /* Phones. The layout already collapses to one column above; this is about the
