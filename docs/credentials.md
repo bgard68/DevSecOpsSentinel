@@ -79,6 +79,33 @@ Remove-Variable key
 redistributes it. Note the limitation: it is one key for everyone, so revoking
 one person's access revokes everybody's.
 
+### Who you give it to
+
+**Usually nobody.** In `Public` mode the deployed link is enough: every bundled
+scenario, Critical through Low, paste-your-own YAML, findings, remediation
+preview and every export format — none of it needs a key.
+
+Hand it over only for the GitHub Sandbox tab, which reads a real repository
+through the App's private key and is therefore yours to lend rather than
+anyone's to take.
+
+| | No key | With the key |
+| --- | --- | --- |
+| Scanner, scenarios, remediation, exports | yes | yes |
+| AI explanations | Mock | whatever `OpenAI:Mode` is set to |
+| GitHub Sandbox | no | yes |
+
+On a Mock deployment the middle row is the same either way, so the key buys
+exactly one thing: the Sandbox tab.
+
+This is the only key a person ever receives. The GitHub App private key and the
+OpenAI key stay server-side and are never handed to anyone — if either is being
+sent to a human, something has gone wrong.
+
+Before sending it to several people, note what rotation costs: one shared key
+cannot be revoked for one of them. That is the limitation individual sign-in
+would remove, and the first concrete reason to bother.
+
 ---
 
 ## `GitHub:PrivateKey`
