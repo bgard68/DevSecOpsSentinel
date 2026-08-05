@@ -539,7 +539,7 @@ distinguished by state, not swallowed for both.
 
 ## Patterns
 
-Reading the seventeen together, five things recur.
+Reading the seventeen together, six things recur.
 
 **A test that cannot fail proves nothing.** The protection gate that ran against
 no files, the SARIF assertion that matched any document containing `2.1.0`, the
@@ -559,7 +559,13 @@ that nobody thought to check. The post-deploy race is the same shape across
 repositories: a sibling project had hit it and left a comment explaining it, and
 this one hit it anyway.
 
-**Some defects are not in the code.** The last three surfaced only when the
+**A fix can take away the signal something else was relying on.** Making a
+refused privileged call non-fatal was right for an anonymous visitor and, in the
+same stroke, made a rejected key silent for someone who had just supplied one.
+Defect 17 was created by the fix for defect 16, within the hour. When a change
+stops a failure being noticed, the question is who else was noticing it.
+
+**Some defects are not in the code.** Several of the last few surfaced only when the
 project first ran somewhere real. An allowlist that is repository configuration,
 a subject string another system generates, a platform that restarts after a
 deployment — none is visible in the tree, so no linter, test or review of the

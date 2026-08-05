@@ -9,6 +9,61 @@ conditional rather than assumed.
 
 ---
 
+## Deployment
+
+### `provision-azure.ps1`
+
+Creates the free-tier Azure resources and wires GitHub OIDC federation. Safe to
+re-run: every resource is created only if absent, and `-WhatIf` prints the plan
+without creating anything.
+
+**Everything is discovered rather than supplied.** Subscription and tenant come
+from `az login`, the repository from the git remote, and the application's own
+configuration from the .NET user secrets already on the machine. That is why it
+takes almost no parameters — the values exist, and asking for them again invites
+a typo.
+
+**No secret is typed, pasted, echoed or written to disk.** The OpenAI key and the
+App private key are read from user secrets; the PEM is base64-encoded in memory,
+so the multi-line form survives an application setting and you never handle the
+encoded string. `Security:ApiKey` is generated here and sent straight to the app
+and to a GitHub secret — nobody ever sees it, which also closes a real detection
+gap, because a bare random string has no shape a secret scanner could match if it
+reached a file.
+
+Settings travel to Azure in a temporary file in the OS temp directory, deleted
+immediately, rather than as `az --settings K=V` arguments — which would put every
+value in the machine's process list for the duration of the call.
+
+It **sets the security posture explicitly and then reads it back**, failing if
+any assertion did not take: HTTPS-only, TLS 1.2, FTPS disabled, and basic
+publishing credentials disabled on both the SCM and FTP endpoints. Current App
+Service defaults already produce all of it. Defaults are not guarantees, they
+change, and nothing here would have noticed. Disabling basic auth is also what
+makes a publish profile unusable, so OIDC is not a convention the deploy workflow
+follows but the only thing that can work.
+
+Two details bought by failure:
+
+- The **federated-identity subject is read from GitHub**, not assembled. GitHub
+  issues subjects carrying immutable numeric ids, and a credential built from
+  owner and repository names never matches — reported as `AADSTS700213`, which
+  names the symptom rather than the cause.
+- The credential check compares the **subject**, not the credential's name. A
+  credential with a stale subject looks perfectly present, so matching on name
+  meant re-running could never repair one.
+
+```powershell
+./scripts/provision-azure.ps1 -WhatIf     # print the plan, create nothing
+./scripts/provision-azure.ps1             # Public mode: the scanner is open
+./scripts/provision-azure.ps1 -Private    # Required mode: everything needs the key
+./scripts/provision-azure.ps1 -Mode Live  # deploy the OpenAI key as well
+```
+
+See [credentials.md](credentials.md) for what each value is and where it ends up.
+
+---
+
 ## Gates
 
 These decide whether the repository is in a releasable state. `run-all.ps1` runs
@@ -80,7 +135,7 @@ With `-StartApi` it starts and stops the API itself, which is how it runs in the
 local gate and in CI. That run forces Mock mode and disables GitHub, so a gate
 never spends credit or reaches the network.
 
-Three details in it were bought with failures:
+Five details in it were bought with failures:
 
 - The API is started **windowless with output redirected**. A visible console
   window can be closed mid-run, which kills the server and fails the gate for a
@@ -90,6 +145,20 @@ Three details in it were bought with failures:
   leaves the port held.
 - Paths, window style and process lookup are conditional on the platform, so the
   script runs on the Linux CI runner as well as on Windows.
+- The expectation for `/openapi` and `/scalar` is **derived from the reported
+  mode**, not fixed. Those endpoints are served only in Development and Testing,
+  so the suite previously demanded 200 — true locally and false on every correct
+  deployment. It now asserts they are *unreachable* wherever a key is in use,
+  which is worth confirming.
+- The key guard asks whether the deployment **uses** a key, not whether one is
+  required to enter. `Public` mode reports `required: false`, so asking the
+  narrower question let a run proceed without a key and then fail on the GitHub
+  checks, which still need one.
+
+The deploy workflow waits for `/api/health/live` before invoking this, because
+App Service recycles after a deployment and the suite asserts rather than waits.
+Without that it read 404 from an app that was still starting and failed a
+deployment that had worked.
 
 ### `smoke-test-github-live.ps1`
 

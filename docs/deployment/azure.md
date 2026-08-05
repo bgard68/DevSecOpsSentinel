@@ -67,6 +67,9 @@ Two options, both fine:
 **Key Vault references.** Adds rotation and audit, at the cost of one more
 dependency.
 
+[credentials.md](../credentials.md) is the full reference — every value, how to
+generate it, and how to rotate it. What follows is the deployment-specific part.
+
 ### What is a secret, and what is only configuration
 
 Three values are secrets. Everything else is ordinary configuration and can sit
