@@ -5,6 +5,7 @@ import {
   getSecurityStatus,
   getStoredApiKey,
   setStoredApiKey,
+  isStoredApiKeyAccepted,
   explainWorkflow,
   getAiStatus,
   getGitHubRepositories,
@@ -150,16 +151,37 @@ function App() {
       .finally(() => setIsLoading(false));
   }, [selectedWorkflowPath, selectedRepository, sourceMode, repositories]);
 
-  function unlockApi(event: React.FormEvent) {
+  async function unlockApi(event: React.FormEvent) {
     event.preventDefault();
-    if (!apiKeyDraft.trim()) {
+    const candidate = apiKeyDraft.trim();
+    if (!candidate) {
       setError('Enter the API access key.');
       return;
     }
 
-    setStoredApiKey(apiKeyDraft);
+    // The key is checked before it is accepted. Storing it unverified made a
+    // wrong key indistinguishable from a right one: the header switched to
+    // "Lock API" as though it had worked, and the only symptom was GitHub
+    // quietly staying unavailable.
+    setStoredApiKey(candidate);
+    setIsLoading(true);
+    try {
+      if (!(await isStoredApiKeyAccepted())) {
+        setStoredApiKey('');
+        setError('That key was not accepted. Check it and try again.');
+        return;
+      }
+    } catch {
+      setStoredApiKey('');
+      setError('The key could not be verified. Check the connection and try again.');
+      return;
+    } finally {
+      setIsLoading(false);
+    }
+
     setApiKeyConfigured(true);
     setApiKeyDraft('');
+    setShowKeyPanel(false);
     setError('');
   }
 

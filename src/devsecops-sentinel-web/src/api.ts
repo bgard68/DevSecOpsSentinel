@@ -109,6 +109,18 @@ export async function explainWorkflow(
   }));
 }
 
+/**
+ * Whether the stored key is accepted by a privileged endpoint.
+ *
+ * Checks the status code rather than the body: the point is to tell a rejected
+ * key from a working one, and a GitHub integration that is merely disabled
+ * still answers 200 to a caller holding a valid key.
+ */
+export async function isStoredApiKeyAccepted(): Promise<boolean> {
+  const response = await apiFetch('/api/github/status');
+  return response.status !== 401;
+}
+
 export async function getGitHubStatus(): Promise<GitHubConnectionStatus> {
   return readJson(await apiFetch('/api/github/status'));
 }

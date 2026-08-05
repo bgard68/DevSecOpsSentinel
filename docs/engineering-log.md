@@ -502,9 +502,44 @@ the difference visible; uniform authorisation hides it.
 
 ---
 
+## 17. A rejected key was indistinguishable from an accepted one
+
+**What was wrong.** Entering the access key stored whatever was typed and
+switched the interface to its unlocked state without ever asking the API whether
+the key worked. A wrong key produced a header reading "Lock API", as though it
+had been accepted, and the only symptom was the GitHub panel quietly continuing
+to say unavailable — which reads as the integration being down, not as the key
+being wrong.
+
+**How it was found.** By pasting the key into the deployed site and watching it
+appear to work while GitHub stayed unavailable.
+
+**Why nothing caught it.** Every client test supplied a working key, so the
+rejection path had no coverage. It was also made worse an hour earlier: the fix
+for defect 16 replaced `Promise.all` with `allSettled` so that a 401 from the
+privileged endpoint would not empty the workspace — correct for an anonymous
+visitor, and it turned the same 401 into silence for someone who had just
+supplied a key. Loud in the wrong case became quiet in both.
+
+**What changed.** The key is verified before it is accepted: a privileged
+endpoint is called and the status code inspected, so a 401 rejects the key,
+clears it, and says so. The status code is read rather than the body, because a
+GitHub integration that is merely disabled still answers 200 to a caller holding
+a valid key — the question is whether the key was accepted, not whether GitHub is
+working. Two tests cover it: a key the API refuses is not stored and reports
+itself, and a key it accepts connects.
+
+**What prevents recurrence.** When a change stops a failure being fatal, check
+what else was relying on it being noticed. `allSettled` was the right call for
+the anonymous case and removed the only signal the authenticated case had. A
+failure that is expected in one state and diagnostic in another has to be
+distinguished by state, not swallowed for both.
+
+---
+
 ## Patterns
 
-Reading the sixteen together, five things recur.
+Reading the seventeen together, five things recur.
 
 **A test that cannot fail proves nothing.** The protection gate that ran against
 no files, the SARIF assertion that matched any document containing `2.1.0`, the
