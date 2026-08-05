@@ -244,6 +244,31 @@ summary { cursor: pointer; color: #b9c5d3; font-weight: 800; }
   .primary-action { padding: .6rem; }
 }
 
+/*
+  Short windows, which are more common than they look. Windows display scaling
+  at 150% turns a 1920x1080 screen into a 1280x720 viewport, and Chrome still
+  reports that as 100% zoom - so this is an ordinary laptop, not an edge case.
+  At 720 the previous tier still left the Analyze button 24px below the fold.
+
+  What goes is descriptive text that repeats something already on screen or in
+  the README: the tagline under the title, and the second line of each banner
+  card. The card headings stay, because they state the security posture. The
+  scenario description and helper text stay too - the editor absorbs them, which
+  is the point of it flexing.
+*/
+@media (min-width: 1024px) and (min-height: 640px) and (max-height: 820px) {
+  h1 { font-size: 1.5rem; }
+  .topbar p { display: none; }
+
+  .hero-strip { margin-bottom: .4rem; gap: .4rem; }
+  .hero-strip div { padding: .4rem .6rem; }
+  .hero-strip span { display: none; }
+
+  .source-switcher { margin: .4rem 0; }
+  .control-panel { gap: .3rem; padding: .7rem; }
+  .editor-shell { min-height: 4rem; }
+}
+
 /* Phones. The layout already collapses to one column above; this is about the
    things that assume a pointer or a wide viewport. */
 @media (max-width: 640px) {
