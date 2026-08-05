@@ -26,15 +26,35 @@ The shipped configuration runs with no external services:
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| `Mode` | `Required` in code | `Required` or `Disabled` |
-| `ApiKey` | — | At least 32 characters when required. Never in the repository |
+| `Mode` | `Required` in code | `Required`, `Public` or `Disabled` |
+| `ApiKey` | — | At least 32 characters for `Required` and `Public`. Never in the repository |
 | `HeaderName` | `X-API-Key` | |
 | `AllowedOrigins` | localhost | Origins permitted by CORS |
+
+| Mode | Deterministic analysis | Live AI | GitHub |
+| --- | --- | --- | --- |
+| `Required` | key | key | key |
+| `Public` | **open** | key | key |
+| `Disabled` | open | open | open |
 
 **`Disabled` is only valid in `Development` and `Testing`.** Anywhere else the
 application refuses to start, through `ValidateOnStart`. The class default is
 `Required`, so the failure mode of a missing configuration section is refusal
 rather than an open API.
+
+**`Public` is not a relaxation of `Required`** — it is a different statement
+about which endpoints need the key, and it still demands one of 32 characters or
+more, because the endpoints it guards are the ones that matter.
+
+Rule evaluation is local computation over text: it makes no outbound call, holds
+no credential and stores nothing, so a key in front of it protects nothing and
+costs a visitor the whole demonstration. GitHub reads spend the App's private
+key, and Live explanations spend the OpenAI key, so those stay behind it.
+
+An anonymous caller in `Public` mode receives **Mock explanations whatever the
+deployment is configured for**, labelled as such in the response. They are not
+refused — they simply cannot cause an outbound request, so they cannot spend
+anything.
 
 The React client never contains a built-in key. For a protected private
 deployment a user may enter the access key, which is held in browser
@@ -130,7 +150,7 @@ GitHub__Enabled=false
 
 | Setting | Value |
 | --- | --- |
-| `Security__Mode` | `Required`, with a key of 32+ characters |
+| `Security__Mode` | `Public` for a demonstration anyone should be able to run, `Required` to keep it private. Either needs a key of 32+ characters |
 | `Security__AllowedOrigins` | the deployed client origin |
 | `AllowedHosts` | the deployed host — the default is localhost only |
 | `OpenAI__Mode` | `Mock` unless you intend to demonstrate the integration |

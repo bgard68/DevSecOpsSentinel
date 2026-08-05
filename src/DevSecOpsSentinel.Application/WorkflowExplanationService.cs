@@ -4,12 +4,13 @@ namespace DevSecOpsSentinel.Application;
 
 public sealed class WorkflowExplanationService(
     IWorkflowAnalysisService analysisService,
-    IWorkflowAiProvider aiProvider,
+    IWorkflowAiProviderSelector providerSelector,
     ISensitiveDataSanitizer sanitizer) : IWorkflowExplanationService
 {
     public async Task<WorkflowExplanationResult> ExplainAsync(
         WorkflowDocument document,
         bool useAi,
+        AiCallerAccess access,
         CancellationToken cancellationToken)
     {
         WorkflowAnalysisResult analysis =
@@ -35,10 +36,12 @@ public sealed class WorkflowExplanationService(
         }
         else
         {
-            explanation = await aiProvider.ExplainAsync(
-                analysis,
-                sanitized.Content,
-                cancellationToken);
+            explanation = await providerSelector
+                .Select(access)
+                .ExplainAsync(
+                    analysis,
+                    sanitized.Content,
+                    cancellationToken);
         }
 
         return new WorkflowExplanationResult(analysis, explanation, sanitized.WasRedacted);

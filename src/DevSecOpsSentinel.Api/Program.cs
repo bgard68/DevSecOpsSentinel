@@ -155,6 +155,13 @@ builder.Services.AddSingleton<IWorkflowAiProvider>(services =>
         _ => new MockWorkflowAiProvider()
     });
 
+// Registered separately from the configured provider so the selector can hand
+// it to anonymous callers whatever the deployment is set to.
+builder.Services.AddSingleton<MockWorkflowAiProvider>();
+builder.Services.AddSingleton<
+    IWorkflowAiProviderSelector,
+    WorkflowAiProviderSelector>();
+
 builder.Services.AddSingleton<
     IWorkflowExplanationService,
     WorkflowExplanationService>();
@@ -173,6 +180,10 @@ builder.Services.AddHttpClient("GitHub", client =>
 builder.Services.AddSingleton<
     IGitHubPrivateKeySource,
     GitHubPrivateKeySource>();
+
+// Written by the API-key middleware, read by endpoints that behave differently
+// for an identified caller. Scoped: it describes one request.
+builder.Services.AddScoped<CallerAuthentication>();
 
 builder.Services.AddSingleton<GitHubAppJwtFactory>();
 
@@ -294,9 +305,17 @@ app.MapGet(
 
         return Results.Ok(new
         {
+            // Whether a key is needed to use the API at all. False in Public
+            // mode, where the scanner is open and the key only unlocks more.
             required = security.IsRequired,
             headerName = security.HeaderName,
-            sessionOnlyBrowserKey = true
+            sessionOnlyBrowserKey = true,
+            mode = security.Mode,
+
+            // So the client can offer the key as an upgrade rather than a gate,
+            // and say what it is for.
+            keyUnlocksGitHub = security.UsesApiKey,
+            keyUnlocksLiveAi = security.UsesApiKey
         });
     });
 
@@ -574,10 +593,14 @@ app.MapPost(
 
         if (request.UseAi)
         {
+            // Reaching this endpoint at all requires the key - /api/github is
+            // privileged in every mode - so the caller is identified and the
+            // configured provider applies.
             WorkflowExplanationResult explained =
                 await explanationService.ExplainAsync(
                     document,
                     true,
+                    AiCallerAccess.Configured,
                     cancellationToken);
 
             return Results.Ok(new
@@ -799,6 +822,7 @@ app.MapPost(
     async (
         ExplainWorkflowRequest? request,
         IWorkflowExplanationService service,
+        CallerAuthentication caller,
         CancellationToken cancellationToken) =>
     {
         IResult? validationFailure =
@@ -821,6 +845,9 @@ app.MapPost(
                     request!.FileName,
                     request.Content),
                 request.UseAi,
+                caller.AiAccess == AiAccess.Full
+                    ? AiCallerAccess.Configured
+                    : AiCallerAccess.MockOnly,
                 cancellationToken);
 
         return !result.Analysis.IsValid

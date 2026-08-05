@@ -66,6 +66,11 @@
 .PARAMETER GitHubPrivateKeyPath
     Fallback for a machine without the user secrets: path to the App's PEM.
 
+.PARAMETER Private
+    Deploy with Security:Mode = Required, so every endpoint needs the key.
+    Without it the deployment uses Public: the deterministic scanner is open to
+    anyone, and the key still guards GitHub and Live explanations.
+
 .PARAMETER WhatIf
     Print the plan and exit without creating anything.
 
@@ -88,7 +93,9 @@ param(
     # variable that could be echoed by accident.
     [System.Security.SecureString]$OpenAiApiKey,
 
-    [string]$GitHubPrivateKeyPath
+    [string]$GitHubPrivateKeyPath,
+
+    [switch]$Private
 )
 
 $ErrorActionPreference = "Stop"
@@ -356,9 +363,12 @@ $securityApiKey = -join ($keyBytes | ForEach-Object { $_.ToString("x2") })   # 6
 $settings = [ordered]@{
     ASPNETCORE_ENVIRONMENT        = "Production"
 
-    # Required outside Development - the application refuses to start without a
-    # key rather than serving an open API.
-    "Security__Mode"              = "Required"
+    # Public: the deterministic scanner is open, and the key still guards
+    # GitHub and Live explanations. A demonstration nobody can run demonstrates
+    # nothing, and rule evaluation reaches nothing and spends nothing - an
+    # anonymous caller receives Mock explanations whatever this is configured
+    # for. Pass -Private for Required, which gates everything.
+    "Security__Mode"              = if ($Private) { "Required" } else { "Public" }
     "Security__ApiKey"            = $securityApiKey
     "Security__AllowedOrigins__0" = $swaUrl
 

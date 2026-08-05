@@ -57,6 +57,7 @@ function App() {
   const [securityStatus, setSecurityStatus] = useState<ApiSecurityStatus | null>(null);
   const [apiKeyDraft, setApiKeyDraft] = useState('');
   const [apiKeyConfigured, setApiKeyConfigured] = useState(() => Boolean(getStoredApiKey()));
+  const [showKeyPanel, setShowKeyPanel] = useState(false);
   const [sourceMode, setSourceMode] = useState<SourceMode>('simulation');
   const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -193,6 +194,12 @@ function App() {
   const referenceResolutionWarnings =
     result?.patch?.referenceResolutionWarnings ?? [];
 
+  // Public mode: entry needs no key, but one buys live AI and the GitHub
+  // sandbox. Offered from the header rather than blocking the page.
+  const keyIsAnUpgrade =
+    !securityStatus?.required &&
+    Boolean(securityStatus?.keyUnlocksGitHub || securityStatus?.keyUnlocksLiveAi);
+
   if (securityStatus?.required && !apiKeyConfigured) {
     return <main className="app-shell">
       <header className="topbar">
@@ -227,7 +234,27 @@ function App() {
 
   return <main className="app-shell">
     <header className="topbar"><div className="brand-lockup"><div className="brand-mark" aria-hidden="true">DS</div><div><span className="eyebrow">v{__APP_VERSION__} · GitHub Actions supply-chain analysis</span><h1>DevSecOps Sentinel</h1><p>Detect, explain, preview, validate, and export secure GitHub Actions remediations without modifying repositories.</p></div></div>
-      <div className="status-cluster" aria-label="Application status"><div className="status-item"><span className="status-dot status-dot-online" />API connected</div><div className="status-item"><span className="status-dot status-dot-ai" />AI: {aiModeLabel}</div><div className={`status-item ${githubReady ? 'status-item-safe' : ''}`}>GitHub: {githubReady ? 'Read-only connected' : 'Unavailable'}</div>{securityStatus?.required && <button type="button" className="status-item status-action" onClick={clearApiKey}>Lock API</button>}</div></header>
+      <div className="status-cluster" aria-label="Application status"><div className="status-item"><span className="status-dot status-dot-online" />API connected</div><div className="status-item"><span className="status-dot status-dot-ai" />AI: {aiModeLabel}</div><div className={`status-item ${githubReady ? 'status-item-safe' : ''}`}>GitHub: {githubReady ? 'Read-only connected' : 'Unavailable'}</div>{apiKeyConfigured ? <button type="button" className="status-item status-action" onClick={clearApiKey}>Lock API</button> : keyIsAnUpgrade && <button type="button" className="status-item status-action" onClick={() => setShowKeyPanel((open) => !open)}>Unlock live AI and GitHub</button>}</div></header>
+
+    {/* Public mode: the key is an upgrade, not a gate. Deterministic analysis
+        works without it, so this is offered rather than demanded. */}
+    {showKeyPanel && !apiKeyConfigured && <section className="access-gate" aria-labelledby="upgrade-title">
+      <span className="panel-kicker">Optional</span>
+      <h2 id="upgrade-title">Unlock live AI and GitHub</h2>
+      <p>The scanner works without a key. One unlocks live model explanations and the read-only GitHub sandbox. It is stored only in this browser tab.</p>
+      <form onSubmit={unlockApi}>
+        <label htmlFor="api-upgrade-key">{securityStatus?.headerName ?? 'X-API-Key'}</label>
+        <input
+          id="api-upgrade-key"
+          type="password"
+          autoComplete="off"
+          value={apiKeyDraft}
+          onChange={(event) => setApiKeyDraft(event.target.value)}
+        />
+        <button className="primary-action" type="submit">Unlock</button>
+      </form>
+      {error && <p className="error">{error}</p>}
+    </section>}
 
     <section className="hero-strip" aria-label="Security boundaries"><div><strong>Read-only GitHub App</strong><span>No branches, commits, or pull requests.</span></div><div><strong>Repository allowlist</strong><span>Only explicitly permitted repositories appear.</span></div><div><strong>Deterministic first</strong><span>AI remains optional and advisory.</span></div></section>
 

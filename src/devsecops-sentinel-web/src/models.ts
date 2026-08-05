@@ -1,7 +1,13 @@
 export interface ApiSecurityStatus {
+  /** Whether a key is needed to use the API at all. False in Public mode. */
   required: boolean;
   headerName: string;
   sessionOnlyBrowserKey: boolean;
+  /** 'Disabled' | 'Public' | 'Required'. */
+  mode?: string;
+  /** A key is not needed to enter, but unlocks these. */
+  keyUnlocksGitHub?: boolean;
+  keyUnlocksLiveAi?: boolean;
 }
 
 export interface ScenarioSummary {

@@ -146,4 +146,54 @@ public sealed class ApiSecurityTests(
         Assert.False(options.IsValidForEnvironment("Production"));
     }
 
+    [Fact]
+    public void Public_security_is_accepted_in_production()
+    {
+        // Public is not a relaxation of Required - it is a different statement
+        // about which endpoints need the key. Refusing it in Production would
+        // have left Required as the only legal value, which is what made a
+        // public deployment unusable by the public.
+        ApiSecurityOptions options = new()
+        {
+            Mode = ApiSecurityOptions.PublicMode,
+            ApiKey = new string('k', 32)
+        };
+
+        Assert.True(options.IsValidForEnvironment("Production"));
+        Assert.True(options.IsValidForEnvironment("Staging"));
+    }
+
+    [Fact]
+    public void Public_security_still_requires_a_usable_key()
+    {
+        // The key has not stopped mattering; it now guards a smaller surface.
+        // Accepting Public without one would silently open GitHub too.
+        ApiSecurityOptions options = new()
+        {
+            Mode = ApiSecurityOptions.PublicMode,
+            ApiKey = "short"
+        };
+
+        Assert.False(options.IsValidForEnvironment("Production"));
+        Assert.Contains(
+            "at least 32 characters",
+            options.GetValidationFailure("Production"),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_failure_message_names_both_legal_production_modes()
+    {
+        // The previous message said Required only, which would now send a
+        // reader to the wrong fix.
+        ApiSecurityOptions options = new()
+        {
+            Mode = ApiSecurityOptions.DisabledMode
+        };
+
+        string failure = options.GetValidationFailure("Production");
+
+        Assert.Contains("Required", failure, StringComparison.Ordinal);
+        Assert.Contains("Public", failure, StringComparison.Ordinal);
+    }
 }
