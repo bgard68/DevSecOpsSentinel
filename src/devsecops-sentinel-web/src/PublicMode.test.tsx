@@ -51,6 +51,28 @@ describe('Public mode', () => {
     expect(screen.getByRole('button', { name: 'Analyze workflow' })).toBeInTheDocument();
   });
 
+  it('still loads scenarios when the privileged GitHub call is refused', async () => {
+    // The regression this guards: the three start-up calls were batched with
+    // Promise.all, so a 401 from /api/github/status - the designed answer for
+    // an anonymous caller - rejected the batch and discarded the scenarios that
+    // had already arrived. The dropdown rendered empty on a working API.
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
+      if (url === '/api/security/status') return Response.json(publicMode);
+      if (url === '/api/scenarios') return Response.json([scenario]);
+      if (url === '/api/scenarios/sample') return Response.json({ ...scenario, content: 'name: Sample\non:\n  push:\n' });
+      if (url === '/api/ai/status') return Response.json({ enabled: true, configured: false, provider: 'OpenAI', mode: 'Mock', model: 'gpt-5-mini', costProtection: { explicitRequestOnly: true, mockModeConsumesCredits: false } });
+      if (url === '/api/github/status') return new Response('{"title":"Authentication required"}', { status: 401 });
+      return new Response('{}', { status: 404 });
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByDisplayValue('sample.yml')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Sample' })).toBeInTheDocument();
+    expect(screen.getByText(/GitHub: Unavailable/)).toBeInTheDocument();
+  });
+
   it('offers the key as an upgrade rather than demanding it', async () => {
     render(<App />);
     await waitFor(() => expect(screen.getByDisplayValue('sample.yml')).toBeInTheDocument());

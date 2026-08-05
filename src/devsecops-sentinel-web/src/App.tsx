@@ -87,12 +87,22 @@ function App() {
           return;
         }
 
-        return Promise.all([getScenarios(), getAiStatus(), getGitHubStatus()])
+        // allSettled, not all. In Public mode an anonymous visitor is refused
+        // by /api/github/status by design, and Promise.all would reject the
+        // whole batch on that one rejection - discarding the scenarios that
+        // had already loaded and leaving the workspace empty. The privileged
+        // call failing is the designed answer, not an error.
+        return Promise.allSettled([getScenarios(), getAiStatus(), getGitHubStatus()])
           .then(([items, ai, github]) => {
-            setScenarios(items);
-            setAiStatus(ai);
-            setGitHubStatus(github);
-            if (items.length > 0) setSelectedId(items[0].id);
+            // Scenarios are the application. Their failure is a real one.
+            if (items.status === 'rejected') throw items.reason;
+
+            setScenarios(items.value);
+            if (items.value.length > 0) setSelectedId(items.value[0].id);
+
+            // Status badges degrade rather than block.
+            if (ai.status === 'fulfilled') setAiStatus(ai.value);
+            if (github.status === 'fulfilled') setGitHubStatus(github.value);
           });
       })
       .catch((reason: unknown) =>

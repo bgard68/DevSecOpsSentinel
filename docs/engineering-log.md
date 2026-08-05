@@ -460,9 +460,51 @@ test passes where it does not matter and fails where it does.
 
 ---
 
+## 16. A refused privileged call emptied the public workspace
+
+**What was wrong.** The client loaded its three start-up resources together:
+
+```ts
+Promise.all([getScenarios(), getAiStatus(), getGitHubStatus()])
+```
+
+`Promise.all` rejects as soon as any input rejects, and discards the results of
+the ones that succeeded. Opening the scanner to anonymous visitors made
+`/api/github/status` answer 401 for them — which is the design, not a fault — so
+the batch rejected, the scenarios that had already arrived were thrown away, and
+the scenario dropdown rendered empty against an API that was working correctly.
+
+The visible symptom pointed at the wrong thing entirely: an empty dropdown and a
+console 401 look like the scanner endpoints are unreachable.
+
+**How it was found.** By loading the deployed site and asking the page itself
+what it could see. A `fetch` to `/api/scenarios` from the page's own origin
+returned 200 with seven scenarios while the dropdown next to it was empty —
+which ruled out CORS, the bundle, the deployment and the API in one step, and
+left only the client's own handling.
+
+**Why nothing caught it.** Every existing client test served all three endpoints
+successfully, because until this release every deployment either required a key
+for all of them or required none. The combination that breaks it — a caller who
+is authorised for some endpoints and refused others — did not exist before the
+mode that created it, and no test described it.
+
+**What changed.** `Promise.allSettled`, with the results separated by
+consequence: scenarios failing is a real error and still throws, while the two
+status badges degrade quietly. A test renders the client against a 401 from
+`/api/github/status` and asserts the scenario list is still populated.
+
+**What prevents recurrence.** `Promise.all` couples the failure of every call to
+the success of all the others. That is right for things that genuinely stand or
+fall together, and wrong for a page assembling independent pieces — where one
+refusal should cost you that piece and nothing else. Partial authorisation makes
+the difference visible; uniform authorisation hides it.
+
+---
+
 ## Patterns
 
-Reading the fifteen together, five things recur.
+Reading the sixteen together, five things recur.
 
 **A test that cannot fail proves nothing.** The protection gate that ran against
 no files, the SARIF assertion that matched any document containing `2.1.0`, the
