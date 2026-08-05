@@ -479,15 +479,37 @@ if (-not (Invoke-Az ad sp list --filter "appId eq '$appId'" --query "[0].id")) {
 
 # One federated credential per trusted GitHub context. GitHub presents a
 # short-lived token proving "I am this workflow on this ref" - nothing is stored.
-$subjects = @{
-    "main" = "repo:${repoSlug}:ref:refs/heads/main"
+#
+# The prefix is ASKED FOR rather than assembled from owner/repo. GitHub now
+# issues subjects carrying immutable numeric ids -
+# repo:owner@30295154/repo@1322411111 - and a credential built from the names
+# simply never matches. The failure says only AADSTS700213 "no matching
+# federated identity record", which describes the symptom and not the cause,
+# and costs an hour if you assume your own construction is right.
+$subjectPrefix = (& gh api "repos/$repoSlug/actions/oidc/customization/sub" `
+    --jq ".sub_claim_prefix" 2>$null)
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($subjectPrefix)) {
+    $subjectPrefix = "repo:$repoSlug"
+    Write-Info "could not read the OIDC subject prefix - falling back to $subjectPrefix"
+} else {
+    Write-Ok "OIDC subject prefix: $subjectPrefix"
 }
-$existingCreds = (Invoke-Az ad app federated-credential list --id $appId) | ForEach-Object { $_.name }
+
+$subjects = @{
+    "main" = "${subjectPrefix}:ref:refs/heads/main"
+}
+$existingCreds = Invoke-Az ad app federated-credential list --id $appId
 foreach ($cred in $subjects.GetEnumerator()) {
-    if ($existingCreds -contains $cred.Key) {
-        Write-Ok "federated credential '$($cred.Key)' already exists"
+    $existing = $existingCreds | Where-Object { $_.name -eq $cred.Key } | Select-Object -First 1
+
+    # Matching on NAME alone would let a credential with a stale subject sit
+    # there looking correct, and re-running would never repair it. The subject
+    # is the part that has to match, so the subject is what is compared.
+    if ($existing -and $existing.subject -eq $cred.Value) {
+        Write-Ok "federated credential '$($cred.Key)' already correct"
         continue
     }
+
     $body = @{
         name      = $cred.Key
         issuer    = "https://token.actions.githubusercontent.com"
@@ -499,8 +521,14 @@ foreach ($cred in $subjects.GetEnumerator()) {
     try {
         # Written to the OS temp dir, never the repo, and deleted immediately.
         Set-Content -Path $temp -Value $body -Encoding utf8
-        Invoke-Az ad app federated-credential create --id $appId --parameters "@$temp" | Out-Null
-        Write-Ok "added federated credential '$($cred.Key)'"
+        if ($existing) {
+            Invoke-Az ad app federated-credential update --id $appId `
+                --federated-credential-id $cred.Key --parameters "@$temp" | Out-Null
+            Write-Ok "corrected federated credential '$($cred.Key)' -> $($cred.Value)"
+        } else {
+            Invoke-Az ad app federated-credential create --id $appId --parameters "@$temp" | Out-Null
+            Write-Ok "added federated credential '$($cred.Key)'"
+        }
     } finally {
         Remove-Item $temp -Force -ErrorAction SilentlyContinue
     }
