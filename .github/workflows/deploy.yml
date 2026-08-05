@@ -177,6 +177,29 @@ jobs:
           app-name: ${{ vars.API_APP_NAME }}
           package: publish
 
+      # App Service recycles the app after a deployment, and on the free tier
+      # the restart plus a cold start runs to the better part of a minute. The
+      # smoke test asserts rather than waits - so without this it reported 404
+      # against an app that was merely still starting, and called a good deploy
+      # a bad one.
+      - name: Wait for the app to come back up
+        shell: bash
+        env:
+          BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          set -uo pipefail
+          for attempt in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$BASE_URL/api/health/live" || true)
+            if [[ "$code" == "200" ]]; then
+              echo "up after ${attempt} attempt(s)"
+              exit 0
+            fi
+            echo "attempt ${attempt}: HTTP ${code:-none}"
+            sleep 10
+          done
+          echo "::error::App did not return 200 from /api/health/live within the wait window."
+          exit 1
+
       # The deploy gate: a red smoke test fails the run, so a broken deploy is
       # known immediately rather than when a visitor finds it. The key is passed
       # through the environment so it never appears in a command line.
