@@ -304,18 +304,47 @@ summary { cursor: pointer; color: #b9c5d3; font-weight: 800; }
    things that assume a pointer or a wide viewport. */
 @media (max-width: 640px) {
   .app-shell { padding: .7rem; }
-  .topbar { gap: .75rem; }
-  h1 { font-size: 1.9rem; line-height: 1.1; }
-  .topbar p { font-size: .9rem; }
-  .status-cluster { max-width: none; gap: .4rem; }
-  .status-item { font-size: .72rem; }
+
+  /*
+    The header was 245px of a 812px screen before the workspace began. The
+    tagline repeats the README and the status chips wrapped to three rows; both
+    are reference rather than something you act on.
+  */
+  .topbar { gap: .6rem; margin-bottom: .5rem; }
+  h1 { font-size: 1.55rem; line-height: 1.1; }
+  .topbar p { display: none; }
+  .eyebrow { font-size: .6rem; }
+  .brand-lockup { gap: .6rem; }
+  .status-cluster { max-width: none; gap: .3rem; }
+  .status-item { font-size: .66rem; padding: .3rem .5rem; }
+
+  .source-switcher { margin: .4rem 0; padding: .2rem; }
+  .source-switcher button { padding: .5rem .6rem; font-size: .85rem; }
+  .pane-switcher { margin: .4rem 0; padding: .2rem; }
+  .pane-switcher button { padding: .55rem .5rem; }
+
+  .control-panel { padding: .75rem; gap: .45rem; }
+  .panel-heading { gap: .3rem; }
+  .panel-heading h2 { font-size: 1.05rem; }
+  .ai-control-card { padding: .5rem .6rem; gap: .3rem; }
+  .ai-control-card span, .ai-control-card p { font-size: .72rem; }
+
+  /* Says the same as the AI card immediately above it. */
+  .helper-text { display: none; }
+
+  /*
+    A form on a phone scrolls; that is normal. Having to scroll to reach the
+    button that runs it is not. Sticky keeps it on screen while the form moves
+    behind it, so the action is always one tap away.
+  */
+  .primary-action { position: sticky; bottom: .5rem; z-index: 5; box-shadow: 0 .6rem 1.4rem #000a; }
 
   /* Comfortable touch targets - 44px is the usual floor. */
   select, input, button, .source-switcher button { min-height: 44px; }
 
   /* A monospace editor at 12px is unreadable on a phone, and anything under
      16px makes iOS Safari zoom the whole page on focus. */
-  textarea { font-size: 16px; min-height: 16rem; }
+  textarea { font-size: 16px; min-height: 13rem; }
   pre { font-size: .8rem; min-height: 0; max-height: 60vh; }
 
   .summary-grid { grid-template-columns: 1fr 1fr; }
