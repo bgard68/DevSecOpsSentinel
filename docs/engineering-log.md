@@ -537,9 +537,45 @@ distinguished by state, not swallowed for both.
 
 ---
 
+## 18. A severity no rule could produce
+
+**What was wrong.** `WorkflowSeverity` defines Low, Medium, High and Critical,
+and its own summary states that every member is produced by at least one rule.
+No rule produced Low. The client rendered an ordering category that could never
+fill, and every export carried a level that never appeared.
+
+The cause was a mis-calibration rather than an oversight. GHA003 — a job with no
+`timeout-minutes` — sat at Medium alongside a token left readable on the runner
+(GHA006) and a permission grant nobody can see (GHA009). A missing timeout
+consumes minutes and, on a self-hosted runner, occupies it; it exposes nothing.
+Rating it with those flattened the distinction between *this wastes resources*
+and *this exposes something*, which is the distinction a severity is for.
+
+**How it was found.** By running all seven bundled scenarios and tabulating the
+severities they produce, to answer a question about what the demonstration
+covers. Critical, High and Medium all appeared. Low did not appear anywhere.
+
+**Why nothing caught it.** Nothing asserted the invariant the enum documents,
+and no test asserted any rule's severity at all. The same defect had already been
+fixed once, by deleting `Informational` — the fix was applied to the instance and
+the rule was never written down.
+
+**What changed.** GHA003 is Low, which both fills the scale and rates it more
+honestly. Three invariants are now asserted: every severity is produced by some
+rule, every rule declares a severity the scale defines, and rule identifiers are
+unique. The rule list they run against is shared with the self-scan rather than
+copied, because a private copy of a list is a list that silently goes stale.
+
+**What prevents recurrence.** An invariant stated in a comment is a wish.
+`WorkflowSeverity` had described this property in its own summary for as long as
+it had been false. If it is worth writing in a doc comment, it is worth a test —
+otherwise the comment documents an intention and the code does something else.
+
+---
+
 ## Patterns
 
-Reading the seventeen together, six things recur.
+Reading the eighteen together, six things recur.
 
 **A test that cannot fail proves nothing.** The protection gate that ran against
 no files, the SARIF assertion that matched any document containing `2.1.0`, the
