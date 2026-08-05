@@ -89,6 +89,59 @@ describe('Public mode', () => {
   });
 });
 
+describe('Entering the key', () => {
+  const githubConnected = { enabled: true, configured: true, connected: true, mode: 'ReadOnly', allowedRepositoryCount: 1, message: 'Connected.' };
+
+  /** Serves /api/github/status only when the request carries the right key. */
+  function keyedFetch(validKey: string) {
+    return vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      const supplied = new Headers(init?.headers).get('X-API-Key');
+      if (url === '/api/security/status') return Response.json(publicMode);
+      if (url === '/api/scenarios') return Response.json([scenario]);
+      if (url === '/api/scenarios/sample') return Response.json({ ...scenario, content: 'name: Sample\non:\n  push:\n' });
+      if (url === '/api/ai/status') return Response.json({ enabled: true, configured: false, provider: 'OpenAI', mode: 'Mock', model: 'gpt-5-mini', costProtection: { explicitRequestOnly: true, mockModeConsumesCredits: false } });
+      if (url === '/api/github/status') {
+        return supplied === validKey
+          ? Response.json(githubConnected)
+          : new Response('{"title":"Authentication required"}', { status: 401 });
+      }
+      return new Response('{}', { status: 404 });
+    });
+  }
+
+  it('refuses a key the API does not accept, and says so', async () => {
+    // The regression: the key was stored unverified, so the header switched to
+    // "Lock API" as though it had worked and the only symptom was GitHub
+    // quietly staying unavailable. A wrong key looked exactly like a right one.
+    vi.stubGlobal('fetch', keyedFetch('the-real-key'));
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Unlock live AI and GitHub' }));
+    fireEvent.change(screen.getByLabelText('X-API-Key'), { target: { value: 'wrong-key' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock' }));
+
+    // The message renders in the panel and in the global alert region, so this
+    // asserts it appears rather than that it appears exactly once.
+    expect(await screen.findAllByText(/was not accepted/i)).not.toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Lock API' })).not.toBeInTheDocument();
+    expect(sessionStorage.getItem('devsecops-sentinel-api-key')).toBeFalsy();
+  });
+
+  it('accepts a valid key and connects GitHub', async () => {
+    vi.stubGlobal('fetch', keyedFetch('the-real-key'));
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Unlock live AI and GitHub' }));
+    fireEvent.change(screen.getByLabelText('X-API-Key'), { target: { value: 'the-real-key' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock' }));
+
+    expect(await screen.findByRole('button', { name: 'Lock API' })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText(/GitHub: Read-only connected/)).toBeInTheDocument());
+  });
+});
+
 describe('Required mode', () => {
   it('still gates the whole workspace', async () => {
     // The stricter mode has to keep working; Public is an addition, not a
