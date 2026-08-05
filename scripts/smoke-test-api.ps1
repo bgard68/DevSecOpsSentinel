@@ -95,7 +95,12 @@ function Invoke-Check {
         [int]$Expected,
         [object]$Body,
         [string]$ContentType = "application/json",
-        [switch]$Public
+        [switch]$Public,
+
+        # Additional acceptable status codes. For properties that can be
+        # enforced at more than one layer, where the property is what matters
+        # and not which component enforced it.
+        [int[]]$OrExpected = @()
     )
 
     try {
@@ -120,11 +125,13 @@ function Invoke-Check {
         }
 
         $Response = Invoke-WebRequest @Parameters
-        if ([int]$Response.StatusCode -eq $Expected) {
-            Write-Host "PASS $Name [$Expected]" -ForegroundColor Green
+        $Acceptable = @($Expected) + $OrExpected
+        $Actual = [int]$Response.StatusCode
+        if ($Acceptable -contains $Actual) {
+            Write-Host "PASS $Name [$Actual]" -ForegroundColor Green
             $script:Passed++
         } else {
-            Write-Host "FAIL $Name expected $Expected got $($Response.StatusCode)" -ForegroundColor Red
+            Write-Host "FAIL $Name expected $($Acceptable -join ' or ') got $Actual" -ForegroundColor Red
             $script:Failed++
         }
     } catch {
@@ -167,15 +174,22 @@ $Mode = if ($SecurityStatus.PSObject.Properties.Name -contains 'mode') {
     $SecurityStatus.mode
 } elseif ($SecurityStatus.required) { 'Required' } else { 'Disabled' }
 
+# Two layers can keep the documentation from being served, and which one does
+# depends on the mode. In Required the API-key middleware refuses it first (401);
+# in Public the middleware lets it through and the endpoints are simply not
+# mapped outside Development (404). The property being asserted is that it is not
+# reachable - encoding one status code encoded which component happened to say
+# no, and broke the moment the other one did.
 $DocsExpected = if ($Mode -eq 'Disabled') { 200 } else { 401 }
+$DocsAlso     = if ($Mode -eq 'Disabled') { @() } else { @(404) }
 
 Invoke-Check "Root" GET "/" 200 $null -Public
 Invoke-Check "Health" GET "/api/health" 200 $null -Public
 Invoke-Check "Health liveness" GET "/api/health/live" 200 $null -Public
 Invoke-Check "Health readiness" GET "/api/health/ready" 200 $null -Public
 Invoke-Check "Security status" GET "/api/security/status" 200 $null -Public
-Invoke-Check "OpenAPI document ($Mode)" GET "/openapi/v1.json" $DocsExpected $null -Public
-Invoke-Check "Scalar API reference ($Mode)" GET "/scalar" $DocsExpected $null -Public
+Invoke-Check "OpenAPI document ($Mode)" GET "/openapi/v1.json" $DocsExpected $null -Public -OrExpected $DocsAlso
+Invoke-Check "Scalar API reference ($Mode)" GET "/scalar" $DocsExpected $null -Public -OrExpected $DocsAlso
 Invoke-Check "Rules" GET "/api/rules" 200 $null
 Invoke-Check "AI status" GET "/api/ai/status" 200 $null
 Invoke-Check "GitHub status" GET "/api/github/status" 200 $null
