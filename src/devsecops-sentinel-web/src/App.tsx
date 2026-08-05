@@ -59,6 +59,11 @@ function App() {
   const [apiKeyDraft, setApiKeyDraft] = useState('');
   const [apiKeyConfigured, setApiKeyConfigured] = useState(() => Boolean(getStoredApiKey()));
   const [showKeyPanel, setShowKeyPanel] = useState(false);
+
+  // Which half of the workspace a phone shows. Ignored above the breakpoint,
+  // where both are side by side. Stacking them made the results roughly a
+  // screen and a half below the button that produces them.
+  const [mobilePane, setMobilePane] = useState<'input' | 'results'>('input');
   const [sourceMode, setSourceMode] = useState<SourceMode>('simulation');
   const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -213,6 +218,10 @@ function App() {
       } else if (includeAi) {
         const response = await explainWorkflow(fileName, content, true); setResult(response.analysis); setExplanation(response); setRemediation(await getRemediationReport(fileName, content));
       } else { setResult(await analyzeWorkflow(fileName, content)); setRemediation(await getRemediationReport(fileName, content)); }
+      // On a phone the panes are exclusive, so finishing an analysis has to
+      // move you to the answer. Leaving you on the input with a result
+      // rendered off-screen is the scrolling this was meant to remove.
+      setMobilePane('results');
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Analysis failed.'); }
     finally { setIsLoading(false); }
   }
@@ -295,7 +304,19 @@ function App() {
       <button type="button" role="tab" aria-selected={sourceMode === 'github'} className={sourceMode === 'github' ? 'active' : ''} onClick={() => { setSourceMode('github'); resetResults(); }}>GitHub Sandbox <span className="read-only-tag">READ ONLY</span></button>
     </div>
 
-    <section className="workspace"><form className="control-panel" onSubmit={submit}>
+    {/* Phone only; CSS hides it once both panes fit side by side. */}
+    <div className="pane-switcher" role="tablist" aria-label="Workspace pane">
+      <button type="button" role="tab" aria-selected={mobilePane === 'input'}
+        className={mobilePane === 'input' ? 'active' : ''}
+        onClick={() => setMobilePane('input')}>Input</button>
+      <button type="button" role="tab" aria-selected={mobilePane === 'results'}
+        className={mobilePane === 'results' ? 'active' : ''}
+        onClick={() => setMobilePane('results')}>
+        Results{findings.length > 0 && <span className="pane-count">{findings.length}</span>}
+      </button>
+    </div>
+
+    <section className="workspace" data-mobile-pane={mobilePane}><form className="control-panel" onSubmit={submit}>
       <div className="panel-heading"><div><span className="panel-kicker">Analysis workspace</span><h2>{sourceMode === 'github' ? 'GitHub workflow' : 'Workflow input'}</h2></div><span className={`mode-pill ${sourceMode === 'github' ? 'mode-pill-readonly' : 'mode-pill-safe'}`}>{sourceMode === 'github' ? 'Read only' : 'Simulation'}</span></div>
 
       {sourceMode === 'simulation' ? <>
