@@ -453,10 +453,20 @@ The check now asserts that the documentation is **not** reachable on a deploymen
 that authenticates, which is worth confirming. The key guard asks whether the
 deployment uses a key at all rather than whether one is required to enter.
 
+**A second time, for the same reason.** Deriving the expectation from the mode
+fixed the environment half and left the layer half: `Required` produces 401,
+because the API-key middleware refuses before routing, and `Public` produces 404,
+because the middleware allows it through and the endpoints are simply not mapped
+outside Development. The first deployment in `Public` mode failed on a property
+that held perfectly well. The check now accepts either, because what is being
+asserted is that the documentation is unreachable — not which component said no.
+
 **What prevents recurrence.** A check whose expected value is a constant is
 asserting something about one environment. When the property under test is
 conditional, the expectation has to be derived from the same condition — or the
-test passes where it does not matter and fails where it does.
+test passes where it does not matter and fails where it does. And when a property
+can be enforced at more than one layer, asserting a single status code asserts
+the layer rather than the property.
 
 ---
 
