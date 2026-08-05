@@ -150,6 +150,73 @@ summary { cursor: pointer; color: #b9c5d3; font-weight: 800; }
   .ai-control-card, .advisor-notice { align-items: flex-start; flex-direction: column; }
   textarea { min-height: 22rem; }
 }
+/*
+  Desktop: the page fills the viewport and the two panels scroll inside it.
+
+  Fixed minimum heights add up to more than a laptop has - at 1280x800 the
+  control panel alone came to 969px against roughly 480px of usable space - so
+  making it "fit" by shrinking type and padding would mean shrinking a long way.
+  Instead the shell owns the viewport height, the header and tabs stay put, and
+  whichever panel is taller scrolls within itself. Nothing is hidden and nothing
+  has to get smaller.
+
+  Gated on height as well as width: a short window is closer to a phone than to
+  a desktop, and a 100vh shell in a 500px-tall window is worse than a page that
+  simply scrolls.
+*/
+@media (min-width: 1024px) and (min-height: 640px) {
+  .app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* min-height: 0 lets a flex child shrink below its content, which is what
+     allows the panels to scroll rather than push the page taller. */
+  .workspace { flex: 1 1 auto; min-height: 0; margin-bottom: 0; }
+  .control-panel, .results { min-height: 0; max-height: 100%; overflow-y: auto; }
+
+  /* Sticky is for a page that scrolls; this one does not. */
+  .control-panel { position: static; }
+
+  /* These reserved space for content that has its own scroll container now. */
+  .results { min-height: 0; }
+  .empty-state { min-height: 0; padding: 3rem 0; }
+  pre { min-height: 0; max-height: none; }
+  textarea { min-height: clamp(9rem, 24vh, 27rem); }
+
+  .topbar { margin-bottom: .8rem; }
+  .hero-strip { margin-bottom: .7rem; }
+  .source-switcher { margin: .7rem 0; }
+}
+
+/* Phones. The layout already collapses to one column above; this is about the
+   things that assume a pointer or a wide viewport. */
+@media (max-width: 640px) {
+  .app-shell { padding: .7rem; }
+  .topbar { gap: .75rem; }
+  h1 { font-size: 1.9rem; line-height: 1.1; }
+  .topbar p { font-size: .9rem; }
+  .status-cluster { max-width: none; gap: .4rem; }
+  .status-item { font-size: .72rem; }
+
+  /* Comfortable touch targets - 44px is the usual floor. */
+  select, input, button, .source-switcher button { min-height: 44px; }
+
+  /* A monospace editor at 12px is unreadable on a phone, and anything under
+     16px makes iOS Safari zoom the whole page on focus. */
+  textarea { font-size: 16px; min-height: 16rem; }
+  pre { font-size: .8rem; min-height: 0; max-height: 60vh; }
+
+  .summary-grid { grid-template-columns: 1fr 1fr; }
+  .remediation-metrics { grid-template-columns: 1fr 1fr; }
+
+  /* Wide content scrolls inside its own box rather than widening the page. */
+  .source-metadata, table { max-width: 100%; overflow-x: auto; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
