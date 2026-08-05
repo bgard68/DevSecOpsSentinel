@@ -29,14 +29,22 @@ that Mock never exercises. See
 
 ## Required settings
 
-`Security:Mode` **must** be `Required` outside Development and Testing — the
-application refuses to start otherwise. That is deliberate: the failure mode of a
-missing configuration section is refusal rather than an open API.
+`Security:Mode` **must** be `Required` or `Public` outside Development and
+Testing — the application refuses to start on `Disabled`. That is deliberate: the
+failure mode of a missing configuration section is refusal rather than an open
+API.
+
+**For a public deployment, `Public` is the mode you want.** Deterministic
+analysis opens to anyone; the key still guards GitHub and Live explanations. A
+demonstration nobody can run demonstrates nothing, and rule evaluation has
+nothing to protect — no outbound call, no credential, no state. An anonymous
+caller gets Mock explanations whatever the deployment is configured for, so they
+cannot spend anything. See [../configuration.md](../configuration.md#security).
 
 | Setting | Value |
 | --- | --- |
 | `ASPNETCORE_ENVIRONMENT` | `Production` |
-| `Security__Mode` | `Required` |
+| `Security__Mode` | `Public`, or `Required` to keep the deployment private |
 | `Security__ApiKey` | 32 characters or more |
 | `Security__AllowedOrigins__0` | the client's origin |
 | `AllowedHosts` | the deployed host name |

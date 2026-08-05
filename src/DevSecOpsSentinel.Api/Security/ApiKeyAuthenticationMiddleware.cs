@@ -13,38 +13,45 @@ public sealed class ApiKeyAuthenticationMiddleware(
     IWebHostEnvironment environment,
     ILogger<ApiKeyAuthenticationMiddleware> logger)
 {
-    public async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(
+        HttpContext context,
+        CallerAuthentication caller)
     {
         ApiSecurityOptions options = optionsMonitor.CurrentValue;
 
-        if (!options.IsRequired ||
-            IsPublicRequest(context.Request.Path))
+        // Recorded whether or not the path needs it: in Public mode an
+        // anonymous request is served, but a key still changes what the model
+        // is allowed to do for it.
+        bool keyPresented = HasValidKey(context.Request, options);
+        if (keyPresented)
+        {
+            caller.MarkAuthenticated();
+        }
+
+        if (!options.UsesApiKey ||
+            keyPresented ||
+            IsOpenRequest(context.Request.Path, options))
         {
             await next(context);
             return;
         }
 
-        if (!context.Request.Headers.TryGetValue(
-                options.HeaderName,
-                out var suppliedValues) ||
-            suppliedValues.Count != 1 ||
-            !IsValidKey(
-                suppliedValues[0],
-                options.ApiKey))
-        {
-            logger.LogWarning(
-                "Rejected unauthorized request for {Method} {Path}.",
-                LogSanitizer.ForLog(context.Request.Method),
-                LogSanitizer.ForLog(context.Request.Path));
+        logger.LogWarning(
+            "Rejected unauthorized request for {Method} {Path}.",
+            LogSanitizer.ForLog(context.Request.Method),
+            LogSanitizer.ForLog(context.Request.Path));
 
-            await WriteUnauthorizedAsync(context);
-            return;
-        }
-
-        await next(context);
+        await WriteUnauthorizedAsync(context);
     }
 
-    private bool IsPublicRequest(PathString path)
+    /// <summary>
+    /// Endpoints that borrow a credential or spend money. These need the key in
+    /// every mode that uses one, including Public.
+    /// </summary>
+    private static bool IsPrivileged(PathString path) =>
+        path.StartsWithSegments("/api/github");
+
+    private bool IsOpenRequest(PathString path, ApiSecurityOptions options)
     {
         if (path == "/" ||
             path.StartsWithSegments("/api/health") ||
@@ -53,10 +60,37 @@ public sealed class ApiKeyAuthenticationMiddleware(
             return true;
         }
 
-        return (environment.IsDevelopment() ||
-                environment.IsEnvironment("Testing")) &&
-               (path.StartsWithSegments("/openapi") ||
-                path.StartsWithSegments("/scalar"));
+        if (environment.IsDevelopment() ||
+            environment.IsEnvironment("Testing"))
+        {
+            if (path.StartsWithSegments("/openapi") ||
+                path.StartsWithSegments("/scalar"))
+            {
+                return true;
+            }
+        }
+
+        // Everything the deterministic engine serves. It parses text and
+        // applies rules to it - no outbound call, no credential, no state - so
+        // an anonymous caller can reach nothing they should not and cost
+        // nothing by trying.
+        return options.IsPublicScanner && !IsPrivileged(path);
+    }
+
+    private static bool HasValidKey(
+        HttpRequest request,
+        ApiSecurityOptions options)
+    {
+        if (!options.UsesApiKey ||
+            !request.Headers.TryGetValue(
+                options.HeaderName,
+                out var suppliedValues) ||
+            suppliedValues.Count != 1)
+        {
+            return false;
+        }
+
+        return IsValidKey(suppliedValues[0], options.ApiKey);
     }
 
     private static bool IsValidKey(
