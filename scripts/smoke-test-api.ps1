@@ -143,17 +143,39 @@ $SecurityStatus = Invoke-RestMethod `
     -Uri "$BaseUrl/api/security/status" `
     -SkipCertificateCheck
 
-if ($SecurityStatus.required -and [string]::IsNullOrWhiteSpace($ApiKey)) {
-    throw "This deployment requires an API key. Pass -ApiKey or set DEVSECOPS_SENTINEL_API_KEY."
+# Public mode reports required = false, because no key is needed to reach the
+# scanner - but one is still needed for GitHub, and this suite checks those.
+# Asking only about `required` let the run continue without a key and then fail
+# on endpoints it could never have reached.
+$UsesApiKey = $SecurityStatus.required -or
+    ($SecurityStatus.PSObject.Properties.Name -contains 'keyUnlocksGitHub' -and
+     $SecurityStatus.keyUnlocksGitHub)
+
+if ($UsesApiKey -and [string]::IsNullOrWhiteSpace($ApiKey)) {
+    throw "This deployment uses an API key. Pass -ApiKey or set DEVSECOPS_SENTINEL_API_KEY."
 }
+
+# The API documentation is served only in Development and Testing, which is the
+# only place Security:Mode may be Disabled. Anywhere else it must NOT be
+# reachable, so the expectation inverts and the check becomes an assertion about
+# exposure rather than about liveness.
+#
+# It previously expected 200 unconditionally, which is true locally and false on
+# every correct deployment - so the suite failed the first time it ran against
+# one, on the two things it should have been confirming were absent.
+$Mode = if ($SecurityStatus.PSObject.Properties.Name -contains 'mode') {
+    $SecurityStatus.mode
+} elseif ($SecurityStatus.required) { 'Required' } else { 'Disabled' }
+
+$DocsExpected = if ($Mode -eq 'Disabled') { 200 } else { 401 }
 
 Invoke-Check "Root" GET "/" 200 $null -Public
 Invoke-Check "Health" GET "/api/health" 200 $null -Public
 Invoke-Check "Health liveness" GET "/api/health/live" 200 $null -Public
 Invoke-Check "Health readiness" GET "/api/health/ready" 200 $null -Public
 Invoke-Check "Security status" GET "/api/security/status" 200 $null -Public
-Invoke-Check "OpenAPI document" GET "/openapi/v1.json" 200 $null -Public
-Invoke-Check "Scalar API reference" GET "/scalar" 200 $null -Public
+Invoke-Check "OpenAPI document ($Mode)" GET "/openapi/v1.json" $DocsExpected $null -Public
+Invoke-Check "Scalar API reference ($Mode)" GET "/scalar" $DocsExpected $null -Public
 Invoke-Check "Rules" GET "/api/rules" 200 $null
 Invoke-Check "AI status" GET "/api/ai/status" 200 $null
 Invoke-Check "GitHub status" GET "/api/github/status" 200 $null
