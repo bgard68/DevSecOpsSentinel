@@ -132,8 +132,11 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      # The solution is named explicitly: the repository carries both a .sln and
+      # a .slnx, and a bare restore cannot choose between them. CI learned this
+      # in a3bc0c9; this workflow had to learn it again.
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore ./DevSecOpsSentinel.slnx
 
       # The RID is explicit rather than incidental: the runner is Linux and so
       # is the target, but naming it means the apphost cannot depend on where
