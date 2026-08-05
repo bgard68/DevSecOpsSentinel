@@ -9,7 +9,7 @@ one registration line.
 | --- | --- | --- | --- |
 | GHA001 | Action not pinned to a commit SHA | High | Yes, when resolvable |
 | GHA002 | Excessive token permissions | High | `write-all` only |
-| GHA003 | Job without a timeout | Medium | Yes |
+| GHA003 | Job without a timeout | Low | Yes |
 | GHA004 | `pull_request_target` trigger | Critical | No |
 | GHA005 | Untrusted expression in a script body | Critical | No |
 | GHA006 | Checkout persisting the job token | Medium | No |

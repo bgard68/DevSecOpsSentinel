@@ -2,6 +2,63 @@
 
 ## Unreleased
 
+## 1.4.0 — 2026-08-05
+
+### Added
+
+- `Security:Mode` accepts a third value, `Public`: deterministic analysis is open
+  to anyone, and the key still guards GitHub reads and Live explanations.
+  Production previously accepted only `Required`, so a public deployment demanded
+  a key handed out by hand — a demonstration nobody can run demonstrates nothing.
+  `Public` is not a relaxation: it still requires a key of 32 characters or more,
+  because the endpoints it guards are the ones that matter.
+- `docs/credentials.md`: every key in one place — what it is, whether it is
+  actually a secret, how to generate it, where it lives locally and deployed, and
+  how to rotate it. It also states plainly that a public client cannot hold a
+  secret, and records which values are *not* secrets, because treating an App ID
+  as one adds ceremony without protection.
+
+### Changed
+
+- The AI provider is selected per request rather than once at startup. A single
+  provider for the whole deployment is fine while every caller presents a key and
+  wrong the moment one does not: a deployment configured Live would have spent
+  credits for anonymous visitors. An anonymous caller now receives Mock whatever
+  the deployment is set to, labelled Mock in the response, and cannot cause an
+  outbound request. An invalid key does not promote a caller — it is served as
+  anonymous on open endpoints and still refused on privileged ones.
+- GHA003, a job without a timeout, is Low rather than Medium. It consumes minutes
+  and occupies a self-hosted runner; it exposes nothing, and rating it alongside a
+  token left readable on the runner flattened the distinction a severity exists to
+  make. This also fills the only severity no rule produced.
+- In the client the access key is an upgrade offered from the header rather than a
+  gate across the page.
+
+### Fixed
+
+- The access key is verified before being accepted. It was stored unchecked, so a
+  wrong key produced a header reading "Lock API" as though it had worked and the
+  only symptom was GitHub quietly staying unavailable.
+- A refused privileged call no longer empties the workspace. The three start-up
+  resources were loaded with `Promise.all`, which rejects on any rejection and
+  discards the successes, so a 401 from `/api/github/status` — the designed answer
+  for an anonymous caller — threw away the scenarios that had already arrived.
+- The smoke suite asserted that the API documentation is exposed. `/openapi` and
+  `/scalar` are served only in Development and Testing, so the suite demanded the
+  opposite of the property the application holds and would have failed against
+  every correct production deployment.
+
+### Documentation
+
+- Three invariants are now asserted rather than described: every severity is
+  produced by some rule, every rule declares a severity the scale defines, and
+  rule identifiers are unique. `WorkflowSeverity` had documented the first in its
+  own summary for as long as it had been false.
+- `docs/scripts.md` covers `provision-azure.ps1`, and the engineering log reaches
+  eighteen entries and a sixth pattern: a fix can take away the signal something
+  else was relying on — one of these defects was created by the fix for the
+  previous one, within the hour.
+
 ## 1.3.0 — 2026-08-05
 
 ### Added

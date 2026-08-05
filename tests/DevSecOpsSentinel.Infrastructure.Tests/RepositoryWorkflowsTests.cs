@@ -19,19 +19,7 @@ public sealed class RepositoryWorkflowsTests
     private readonly WorkflowParser _parser = new();
 
     private static IReadOnlyList<IWorkflowSecurityRule> AllRules() =>
-    [
-        new UnpinnedActionRule(),
-        new ExcessivePermissionsRule(),
-        new MissingTimeoutRule(),
-        new UnsafePullRequestTargetRule(),
-        new ScriptInjectionRule(),
-        new PersistedCredentialsRule(),
-        new UntrustedCheckoutRule(),
-        new InheritedSecretsRule(),
-        new UndeclaredPermissionsRule(),
-        new SelfHostedRunnerRule(),
-        new ArtifactPoisoningRule()
-    ];
+        RuleCatalogue.All();
 
     /// <summary>
     /// Findings this repository has read and accepted, with the reason.
