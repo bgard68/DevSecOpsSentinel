@@ -423,9 +423,46 @@ of the assertion, not inside it.
 
 ---
 
+## 15. The smoke suite required the API documentation to be exposed
+
+**What was wrong.** Two of the twenty-five checks asserted that
+`/openapi/v1.json` and `/scalar` return 200. Those endpoints are served only in
+Development and Testing; on any deployment that authenticates, they correctly
+return 401. So the suite demanded the opposite of the property the application
+was built to hold, and would have failed against every correct production
+deployment.
+
+It also asked the wrong question about the key. The guard threw only when
+`required` was true, and `Public` mode reports `required: false` — so a run
+against a public deployment would proceed without a key and then fail on the
+GitHub checks, which still need one.
+
+**How it was found.** The first deployment whose smoke suite ran to completion.
+Every earlier run had died before reaching these checks — first on a workflow
+that would not start, then on an application that had not finished restarting.
+Twenty-three passed, two failed, and both failures were the suite being wrong.
+
+**Why nothing caught it.** The suite is only ever run locally before a
+deployment exists, and locally the environment is Development, where 200 is the
+right answer. The assertion was true everywhere it had been executed and false
+everywhere it mattered.
+
+**What changed.** The expectation is derived from the reported mode: 200 when
+`Disabled` — which is legal only in Development and Testing — and 401 otherwise.
+The check now asserts that the documentation is **not** reachable on a deployment
+that authenticates, which is worth confirming. The key guard asks whether the
+deployment uses a key at all rather than whether one is required to enter.
+
+**What prevents recurrence.** A check whose expected value is a constant is
+asserting something about one environment. When the property under test is
+conditional, the expectation has to be derived from the same condition — or the
+test passes where it does not matter and fails where it does.
+
+---
+
 ## Patterns
 
-Reading the fourteen together, five things recur.
+Reading the fifteen together, five things recur.
 
 **A test that cannot fail proves nothing.** The protection gate that ran against
 no files, the SARIF assertion that matched any document containing `2.1.0`, the
