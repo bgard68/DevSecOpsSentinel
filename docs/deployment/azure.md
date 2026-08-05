@@ -172,9 +172,69 @@ Use **OIDC federated credentials** for the GitHub Actions deploy identity, not a
 stored publish profile. A federated credential is a trust relationship rather
 than a secret, so there is nothing in the repository to leak or rotate.
 
+`provision-azure.ps1` goes further and disables basic authentication on the SCM
+and FTP endpoints, which makes a publish profile unusable. OIDC is then not a
+convention the workflow follows but the only thing that can deploy.
+
 Whatever runs the deployment should be a separate workflow gated on the same
 `classify-changes` outputs the build uses, so an API change deploys the API and a
 client change deploys the client. See [../ci-cd.md](../ci-cd.md).
+
+### The subject is GitHub's to decide, not yours to construct
+
+GitHub presents federated-identity subjects carrying **immutable numeric ids**:
+
+```
+repo:owner@30295154/repository@1322411111:ref:refs/heads/main
+```
+
+not the older `repo:owner/repository:ref:refs/heads/main`. A credential built
+from the names simply never matches, and Entra reports that as:
+
+> `AADSTS700213: No matching federated identity record found for presented
+> assertion subject ...`
+
+which names the symptom and not the cause. The subject GitHub actually sent is
+printed in the workflow log immediately above the error — read that rather than
+the error.
+
+The provisioning script asks for the prefix rather than assembling it:
+
+```powershell
+gh api "repos/$repoSlug/actions/oidc/customization/sub" --jq ".sub_claim_prefix"
+```
+
+It also compares the **subject** of an existing credential rather than its name,
+because a credential with a stale subject looks perfectly present, and matching
+on name means re-running can never repair it.
+
+---
+
+## The repository must allow the actions the workflow uses
+
+If Actions is set to *"Allow specified actions and reusable workflows"*, the
+three Azure actions have to be listed. They are not GitHub-owned, so
+`github_owned_allowed` does not cover them:
+
+```
+azure/login@<sha>
+azure/webapps-deploy@<sha>
+Azure/static-web-apps-deploy@<sha>
+```
+
+**A blocked action fails the run before any job starts, with no log.** The
+symptom is `startup_failure` on a workflow that parses correctly, passes
+`actionlint`, resolves every pinned SHA, and is listed as `active`. Nothing in
+the repository tree is wrong, so nothing in the repository tree can tell you.
+
+Check the policy before re-reading the YAML:
+
+```bash
+gh api repos/<owner>/<repo>/actions/permissions/selected-actions
+```
+
+This is the control working, not failing. An action that can authenticate to your
+subscription should be approved deliberately rather than arriving with a merge.
 
 ---
 
@@ -225,6 +285,12 @@ place free tier is worth reconsidering.
 Twenty-five checks including eight failure conditions. It reads
 `/api/security/status` first and refuses to run without a key when the deployment
 requires one.
+
+**Wait for the app before asserting.** App Service recycles after a deployment,
+and on F1 the restart plus cold start runs to most of a minute. A smoke suite
+invoked immediately reads 404 from an app that is merely still starting, and
+fails a deployment that worked. The deploy workflow polls `/api/health/live`
+first, which keeps the smoke test's job assertion rather than patience.
 
 Then confirm `/api/health/ready` reports the integration states you expect. If
 GitHub reads `Unavailable` while enabled, the private key is not reaching the

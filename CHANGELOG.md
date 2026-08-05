@@ -2,8 +2,31 @@
 
 ## Unreleased
 
+## 1.3.0 — 2026-08-05
+
 ### Added
 
+- `scripts/provision-azure.ps1` creates the free-tier Azure resources and wires
+  GitHub OIDC federation. Nothing is typed or pasted: the OpenAI key and the App
+  private key are read from the user secrets already on the machine, the PEM is
+  base64-encoded in memory so the multi-line form survives an application
+  setting, and `Security:ApiKey` is generated. Nobody sees that key, which also
+  closes a detection gap — a bare random string has no shape a secret scanner
+  could match if it ever reached a file.
+- The provisioning script sets the security posture explicitly and then reads it
+  back, failing if any assertion did not take. Current App Service defaults
+  already produce all of it; defaults are not guarantees, and nothing would have
+  noticed a change. Disabling basic authentication on the SCM and FTP endpoints
+  is what makes OIDC the only thing that *can* deploy.
+- A deploy workflow for both halves, each gated on the same `classify-changes`
+  outputs the build uses, so a documentation commit deploys nothing. It refuses
+  to ship an artifact containing working-tree directories.
+- A keep-warm workflow, standing in for the Always On that the free tier does not
+  have. It costs about one CPU-second a day against a 60 CPU-minute allowance and
+  needs no secret, because the health endpoint is exempt from authentication.
+- `RepositoryWorkflowsTests` runs this project's rules against this project's own
+  workflows. Nothing had ever done so; it found seven real GHA006 findings and
+  two rules reporting a workflow for being correct.
 - The GitHub App private key can be supplied as configuration, as PEM text or
   base64-encoded PEM. Reading it only from a filesystem path is what prevented
   this application being deployed: App Service settings and Key Vault references
@@ -21,6 +44,13 @@
 
 ### Changed
 
+- The client resolves the API through `VITE_API_BASE_URL`, empty locally. It
+  previously called relative `/api` paths and relied on the Vite dev proxy, which
+  meant every call would have 404'd once deployed — Static Web Apps cannot proxy
+  to an external backend on the Free tier.
+- Removed the duplicate `DevSecOpsSentinel.sln`. It listed the same eight
+  projects as the `.slnx` and made a bare `dotnet restore` ambiguous, which is
+  what stopped the first real deployment. `.slnx` is the format for .NET 10.
 - Readiness answers whether the instance can serve requests, rather than failing
   when an optional integration is misconfigured. Deterministic analysis depends
   on nothing external, so reporting the whole application as unready over GitHub
@@ -40,12 +70,40 @@
 
 ### Fixed
 
+- GHA006 across all four existing workflows: none set `persist-credentials`, so
+  every job left the token in `.git/config` for anything later in the job to
+  read.
+- GHA009 could not tell `permissions: {}` from no permissions block at all,
+  because both leave zero entries. The first is the strongest statement a
+  workflow can make; the rule called it an omission and recommended `read-all`,
+  which would have widened a grant that was already empty.
+- GHA002 reported `id-token: write`. That grants no access to the repository —
+  only the right to request an OIDC token — and it is what removes a stored
+  publish credential from a deploy pipeline. The offered remediation settled it:
+  there is no useful `id-token: read`, so the advice could not be taken without
+  breaking the workflow.
+- The federated-identity subject is read from GitHub rather than assembled.
+  GitHub issues subjects carrying immutable numeric ids, and a credential built
+  from owner and repository names never matches. The credential check also
+  compared names rather than subjects, so a credential with a stale subject
+  looked correct and re-running could not repair it.
+- The deploy workflow waits for the app before running the smoke suite. App
+  Service recycles after a deployment, and the suite asserted against an app that
+  had not finished starting — failing a deployment that had worked.
 - The private key is read once rather than on every installation-token refresh.
 - The private key tests generate a key at run time rather than embedding one. A
   literal PEM in source is indistinguishable from a leaked key to a scanner, and
   the pre-commit hook correctly refused the first attempt. Generating it makes
   the test stronger as well, because the value is a real key and the import is
   exercised rather than a shape being matched.
+
+### Documentation
+
+- Recorded three defects that surfaced only when the project first ran somewhere
+  real: an Actions allowlist that blocks a third-party action before any job
+  starts and writes no log, GitHub's immutable OIDC subject format, and the
+  post-deploy restart race. None is visible in the repository tree, so no linter,
+  test or review of the diff could have found them.
 
 ## 1.2.3 — 2026-08-04
 

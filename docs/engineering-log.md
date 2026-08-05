@@ -317,9 +317,115 @@ Every one of those tests can pass on an application that will not run.
 
 ---
 
+## 12. The pipeline could not run the actions it was pinned to
+
+**What was wrong.** The first deployment workflow failed with `startup_failure`
+and no log at all — no job ran, so there was nothing to log. The workflow file
+was valid: it parsed, `actionlint` passed it clean, every pinned SHA resolved and
+was reachable from a tag or branch, and GitHub listed the workflow as `active`.
+
+The repository's own Actions policy was blocking it. `allowed_actions` was set to
+`selected`, permitting GitHub-owned actions plus one entry for Gitleaks.
+`azure/login`, `azure/webapps-deploy` and `Azure/static-web-apps-deploy` were not
+on the list, and an action outside the allowlist is refused before any job
+starts.
+
+**How it was found.** By bisection, after the file itself had been exonerated
+several times over. A probe workflow was cut down to one job and pushed, then
+grown a step at a time. Everything passed until `azure/login` was added, and
+that step failed identically every time.
+
+The first theory was wrong: `azure/login@v2.3.1` declares a `post-if` expression,
+which looked like the sort of thing a workflow parser might reject. Pinning back
+to v2.1.1, which has no `post-if`, failed exactly the same way — which is what
+ruled the file out and pointed at the repository instead.
+
+**Why nothing caught it.** Nothing could. The allowlist is repository
+configuration, not a file in the tree, so no linter, no test and no review of the
+diff can see it. The workflow is correct; the environment refuses it. The failure
+surfaces only against the repository that carries the policy.
+
+It is also the control working as designed. A third-party action that can
+authenticate to an Azure subscription should require a deliberate decision rather
+than arriving with a merged pull request.
+
+**What changed.** The three Azure actions were added to `patterns_allowed`, each
+pinned to a commit, which `sha_pinning_required` independently enforces.
+
+**What prevents recurrence.** Knowing the failure mode is the prevention: a
+`startup_failure` with no log, on a workflow that lints clean, means the
+repository refused something the file asked for. Check
+`/actions/permissions/selected-actions` before reading the YAML again.
+
+---
+
+## 13. The deployment identity did not match the identity presented
+
+**What was wrong.** `provision-azure.ps1` registered a federated credential with
+the subject `repo:bgard68/DevSecOpsSentinel:ref:refs/heads/main`. GitHub presents
+`repo:bgard68@30295154/DevSecOpsSentinel@1322411111:ref:refs/heads/main` — the
+owner and repository carry immutable numeric ids. The two never match, so every
+deployment failed to authenticate.
+
+**How it was found.** Entra answers a mismatch with `AADSTS700213: No matching
+federated identity record found for presented assertion subject`, followed by the
+subject it received. The error names the symptom and not the cause, and the
+constructed subject looks entirely reasonable next to it. What settled it was
+that the workflow log prints the subject GitHub actually sent, immediately above
+the error.
+
+**Why nothing caught it.** The subject was assembled from owner and repository
+names, which is what the documentation showed when the script was written. A
+value you construct yourself is the last thing you check, because it looks
+correct — it is exactly what you meant to write.
+
+The credential check made it worse: it matched on the credential's **name**, so
+a credential with a wrong subject sat there looking present and correct, and
+re-running the script could never repair it.
+
+**What changed.** The prefix is now read from
+`repos/{owner}/{repo}/actions/oidc/customization/sub` rather than assembled, so
+the format stays GitHub's to decide. The existence check compares the subject and
+updates in place when it differs.
+
+**What prevents recurrence.** Ask the system for the value it will send. Any
+identifier that another party generates — subjects, audiences, issuer URLs — is
+theirs to change, and a local reconstruction of it is a copy that will eventually
+drift.
+
+---
+
+## 14. A successful deployment was reported as a failure
+
+**What was wrong.** The deploy workflow ran the smoke suite immediately after
+pushing the package. App Service recycles the app after a deployment, and on the
+free tier the restart and cold start together take most of a minute. The smoke
+test asserted against an app that had not finished starting, got a 404, and
+failed a deployment that had in fact worked — the same endpoints answered
+correctly a minute later.
+
+**How it was found.** By checking the deployed API by hand after the workflow
+went red, and finding it healthy.
+
+**Why nothing caught it.** The race cannot occur locally, where the API is
+already running before the smoke test is invoked. It requires a real deployment
+against a platform that restarts, and the free tier makes the window wide enough
+to lose reliably. A sibling repository had already hit this and its script
+carries a comment saying so; the knowledge existed and was not transferred.
+
+**What changed.** A wait step polls `/api/health/live` until it answers before
+the smoke test runs, so the suite keeps asserting rather than waiting.
+
+**What prevents recurrence.** Separate waiting from asserting. A check that
+retries until success cannot distinguish "not ready yet" from "broken", and one
+that does not retry cannot distinguish them either — so the wait belongs in front
+of the assertion, not inside it.
+
+---
+
 ## Patterns
 
-Reading the eleven together, four things recur.
+Reading the fourteen together, five things recur.
 
 **A test that cannot fail proves nothing.** The protection gate that ran against
 no files, the SARIF assertion that matched any document containing `2.1.0`, the
@@ -335,4 +441,13 @@ have been found otherwise.
 
 **A lesson written down is not a lesson generalised.** The configuration binding
 mistake was diagnosed, fixed, and documented — then repeated in a second place
-that nobody thought to check.
+that nobody thought to check. The post-deploy race is the same shape across
+repositories: a sibling project had hit it and left a comment explaining it, and
+this one hit it anyway.
+
+**Some defects are not in the code.** The last three surfaced only when the
+project first ran somewhere real. An allowlist that is repository configuration,
+a subject string another system generates, a platform that restarts after a
+deployment — none is visible in the tree, so no linter, test or review of the
+diff could have found them. The first deployment is itself a test, and it is the
+only one that runs the environment.
