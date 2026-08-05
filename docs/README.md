@@ -6,6 +6,7 @@
 | --- | --- |
 | [getting-started.md](getting-started.md) | Prerequisites, running it, where secrets live |
 | [configuration.md](configuration.md) | Every setting, Mock and Live, deployment checklist |
+| [credentials.md](credentials.md) | Every key: what it is, how to generate it, where it goes, how to rotate it |
 
 ## How it works
 
@@ -22,6 +23,7 @@
 | [engineering-log.md](engineering-log.md) | Defects found after "complete": how each surfaced, what prevents recurrence |
 | [ci-cd.md](ci-cd.md) | The four workflows, path-selective builds, releasing |
 | [scripts.md](scripts.md) | Every script, what it does, why it exists |
+| [../scripts/provision-azure.ps1](../scripts/provision-azure.ps1) | Creates the Azure resources and OIDC federation, without a secret being typed |
 | [operations.md](operations.md) | Running it, health endpoints, rotation |
 | [deployment/azure.md](deployment/azure.md) | App Service, Key Vault, what degraded looks like |
 
