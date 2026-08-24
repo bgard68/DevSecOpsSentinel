@@ -10,5 +10,6 @@
     <Project Path="tests/DevSecOpsSentinel.Application.Tests/DevSecOpsSentinel.Application.Tests.csproj" />
     <Project Path="tests/DevSecOpsSentinel.Infrastructure.Tests/DevSecOpsSentinel.Infrastructure.Tests.csproj" />
     <Project Path="tests/DevSecOpsSentinel.Api.Integration.Tests/DevSecOpsSentinel.Api.Integration.Tests.csproj" />
+    <Project Path="tests/DevSecOpsSentinel.Evals/DevSecOpsSentinel.Evals.csproj" />
   </Folder>
 </Solution>

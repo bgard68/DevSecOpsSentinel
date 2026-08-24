@@ -1,0 +1,6 @@
+{
+  "summary": "No findings. The workflow pins its action, declares permissions, sets a timeout and does not persist credentials.",
+  "findings": [],
+  "recommendedNextStep": "No change required.",
+  "limitations": []
+}

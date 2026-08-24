@@ -1,0 +1,14 @@
+# GHA001 only: a mutable tag instead of a SHA. Everything else is suppressed.
+name: Unpinned
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false

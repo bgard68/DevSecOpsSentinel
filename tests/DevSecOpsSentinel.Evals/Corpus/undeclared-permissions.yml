@@ -1,0 +1,12 @@
+# GHA009 only: no permissions block anywhere, so the token inherits the repository default.
+name: Undeclared permissions
+on:
+  push:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false

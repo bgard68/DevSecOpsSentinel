@@ -27,6 +27,13 @@ public sealed class MissingTimeoutRule : IWorkflowSecurityRule
     // not.
     public IReadOnlyList<WorkflowFinding> Evaluate(ParsedWorkflow workflow) =>
         workflow.Structure.Jobs
+            // A job that calls a reusable workflow cannot carry timeout-minutes: GitHub
+            // accepts only uses, with, secrets, needs, if, permissions, strategy and
+            // concurrency on it, and rejects the workflow outright otherwise. Reporting it
+            // here would not merely be noise — the finding is marked automatically fixable,
+            // so the remediation preview would offer a patch that breaks the file. The
+            // called workflow sets its own timeouts on the jobs that can hold them.
+            .Where(job => job.Uses is null)
             .Where(job => job.TimeoutLine is null)
             .Select(job => new WorkflowFinding(
                 RuleId,

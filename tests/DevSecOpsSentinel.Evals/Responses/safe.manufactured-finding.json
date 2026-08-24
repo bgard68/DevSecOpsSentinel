@@ -1,0 +1,8 @@
+{
+  "summary": "The workflow has a security weakness.",
+  "findings": [
+    { "ruleId": "GHA002", "whyItMatters": "Permissions appear broad.", "recommendedAction": "Narrow the grant.", "confidence": "low" }
+  ],
+  "recommendedNextStep": "Review permissions.",
+  "limitations": []
+}

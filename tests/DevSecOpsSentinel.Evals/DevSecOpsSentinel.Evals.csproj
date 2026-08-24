@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DevSecOpsSentinel.Infrastructure\DevSecOpsSentinel.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The corpus is data, not code. Copying it to the output keeps the eval reading the
+         same .yml text a reviewer reads in the repository, rather than a C# transcription. -->
+    <None Include="Corpus\**\*.yml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Responses\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
