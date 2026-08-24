@@ -97,6 +97,17 @@ async function main() {
     await page.getByRole('button', { name: 'AI advisor' }).click();
     await page.getByText('Advisory only').waitFor();
     await capture(page, '03-live-ai-safe-workflow.png');
+
+    // 4 — the scanner scanning its own repository through the public tab. The
+    // three findings that come back are the documented, test-enforced
+    // exceptions from RepositoryWorkflowsTests, which is the point of the
+    // image: the tool does not hide its own findings. Needs no key and spends
+    // nothing — the fetch is anonymous.
+    await page.getByRole('tab', { name: /Public repo/ }).click();
+    await page.getByLabel('Public repository').fill('bgard68/DevSecOpsSentinel');
+    await page.getByRole('button', { name: 'Scan public repository' }).click();
+    await page.getByText('ci.yml', { exact: true }).waitFor({ timeout: 60_000 });
+    await capture(page, '04-public-repo-self-scan.png');
   } finally {
     await browser.close();
   }
