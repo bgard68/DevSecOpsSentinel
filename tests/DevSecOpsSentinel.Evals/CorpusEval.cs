@@ -89,7 +89,7 @@ public sealed class CorpusEval
     {
         string[] missing = [.. GoldenCorpus.Entries
             .Select(entry => entry.FileName)
-            .Where(name => !File.Exists(Path.Combine(CorpusDirectory, name)))];
+            .Where(name => !File.Exists(Path.Join(CorpusDirectory, name)))];
 
         Assert.True(missing.Length == 0, $"Declared but absent from Corpus/: {Join(missing)}");
     }
@@ -140,12 +140,12 @@ public sealed class CorpusEval
             lines.Add($"| {rule.RuleId} {rule.Title} | {(count == 0 ? "**none**" : count.ToString())} |");
         }
 
-        string path = Path.Combine(AppContext.BaseDirectory, "scoreboard.md");
+        string path = Path.Join(AppContext.BaseDirectory, "scoreboard.md");
         File.WriteAllLines(path, lines);
         Assert.True(File.Exists(path));
     }
 
-    internal static string CorpusDirectory => Path.Combine(AppContext.BaseDirectory, "Corpus");
+    internal static string CorpusDirectory => Path.Join(AppContext.BaseDirectory, "Corpus");
 
     /// <summary>
     /// The scan a recorded reply is measured against. Shared with the replay eval so both
@@ -153,7 +153,7 @@ public sealed class CorpusEval
     /// </summary>
     internal static WorkflowAnalysisResult AnalyzeForReplay(string fileName)
     {
-        string content = File.ReadAllText(Path.Combine(CorpusDirectory, fileName));
+        string content = File.ReadAllText(Path.Join(CorpusDirectory, fileName));
         WorkflowParseResult parsed = Parser.Parse(new WorkflowDocument(fileName, content));
 
         return new WorkflowAnalysisResult(
@@ -166,7 +166,7 @@ public sealed class CorpusEval
 
     private static string[] Scan(string fileName)
     {
-        string content = File.ReadAllText(Path.Combine(CorpusDirectory, fileName));
+        string content = File.ReadAllText(Path.Join(CorpusDirectory, fileName));
         WorkflowParseResult parsed = Parser.Parse(new WorkflowDocument(fileName, content));
 
         Assert.True(

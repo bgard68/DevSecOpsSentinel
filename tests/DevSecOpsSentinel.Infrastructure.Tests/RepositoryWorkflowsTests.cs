@@ -59,7 +59,7 @@ public sealed class RepositoryWorkflowsTests
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            string candidate = Path.Combine(directory.FullName, ".github", "workflows");
+            string candidate = Path.Join(directory.FullName, ".github", "workflows");
             if (Directory.Exists(candidate))
             {
                 return candidate;
@@ -96,7 +96,7 @@ public sealed class RepositoryWorkflowsTests
     [MemberData(nameof(WorkflowFiles))]
     public void Our_own_workflows_pass_our_own_rules(string fileName)
     {
-        string path = Path.Combine(WorkflowDirectory(), fileName);
+        string path = Path.Join(WorkflowDirectory(), fileName);
         WorkflowParseResult result = _parser.Parse(
             new WorkflowDocument(fileName, File.ReadAllText(path)));
 

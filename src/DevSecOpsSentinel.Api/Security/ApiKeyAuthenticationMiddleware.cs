@@ -60,14 +60,10 @@ public sealed class ApiKeyAuthenticationMiddleware(
             return true;
         }
 
-        if (environment.IsDevelopment() ||
-            environment.IsEnvironment("Testing"))
+        if ((environment.IsDevelopment() || environment.IsEnvironment("Testing")) &&
+            (path.StartsWithSegments("/openapi") || path.StartsWithSegments("/scalar")))
         {
-            if (path.StartsWithSegments("/openapi") ||
-                path.StartsWithSegments("/scalar"))
-            {
-                return true;
-            }
+            return true;
         }
 
         // Everything the deterministic engine serves. It parses text and

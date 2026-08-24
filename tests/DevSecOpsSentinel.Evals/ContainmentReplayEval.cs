@@ -131,15 +131,15 @@ public sealed class ContainmentReplayEval
                 + $"| {verdict(accepted)} | {(accepted == entry.ShouldBeAccepted ? "pass" : "**FAIL**")} |");
         }
 
-        File.WriteAllLines(Path.Combine(AppContext.BaseDirectory, "replay-scoreboard.md"), lines);
+        File.WriteAllLines(Path.Join(AppContext.BaseDirectory, "replay-scoreboard.md"), lines);
         Assert.True(true);
     }
 
-    private static string ResponsesDirectory => Path.Combine(AppContext.BaseDirectory, "Responses");
+    private static string ResponsesDirectory => Path.Join(AppContext.BaseDirectory, "Responses");
 
     private static OpenAiWorkflowAiProvider.OpenAiExplanationPayload Load(string responseFile)
     {
-        string json = File.ReadAllText(Path.Combine(ResponsesDirectory, responseFile));
+        string json = File.ReadAllText(Path.Join(ResponsesDirectory, responseFile));
         return JsonSerializer.Deserialize<OpenAiWorkflowAiProvider.OpenAiExplanationPayload>(json, JsonOptions)
             ?? throw new InvalidOperationException($"{responseFile} did not deserialise.");
     }
