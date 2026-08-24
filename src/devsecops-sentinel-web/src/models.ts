@@ -146,3 +146,20 @@ export interface RemediationReport {
   resolvedFindingCount: number;
   remainingFindingCount: number;
 }
+
+export interface PublicScanFile {
+  fileName: string;
+  htmlUrl: string;
+  analysis: WorkflowAnalysisResult;
+}
+
+export interface PublicScanResult {
+  owner: string;
+  repository: string;
+  status: 'Completed' | 'RepositoryNotFound' | 'NoWorkflows' | 'InvalidName' | 'QuotaExhausted' | 'GitHubUnavailable';
+  detail: string | null;
+  files: PublicScanFile[];
+  skippedFiles: number;
+  fetchedAtUtc: string;
+  fromCache: boolean;
+}
