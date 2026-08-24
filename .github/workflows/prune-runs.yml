@@ -1,0 +1,110 @@
+name: Prune workflow runs
+
+# Keep warm pings four times an hour through waking hours, so it produces about
+# 64 runs a day and roughly 450 a week. Left alone it buries everything else:
+# the run list reached 881 entries, 426 of them pings, and a genuine Deploy
+# failure sat in that list unnoticed from 17 to 24 August.
+#
+# The fix is not a slower ping. keep-warm.yml explains why fifteen minutes is
+# already the loose end of what beats a twenty-minute idle unload — widening it
+# trades away the thing it exists to do. So keep the cadence and stop keeping
+# the runs.
+#
+# Retention differs by what a run is evidence of:
+#
+#   Keep warm   1 day    A ping proves nothing after the next ping.
+#   everything  30 days  CI, CodeQL, Gitleaks, Deploy and Dependency Review are
+#                        the audit trail. Thirty days covers the window where
+#                        "when did this start failing?" is still answerable —
+#                        the question that went unanswered for a week here.
+#
+# Runs still in progress are never touched, whatever their age.
+
+on:
+  schedule:
+    - cron: "20 5 * * *" # 00:20 Central, outside the keep-warm window
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List what would be deleted without deleting it"
+        type: boolean
+        default: false
+
+# Nothing at workflow scope: a write granted here would apply to every job the
+# file ever grows, and this project's own GHA002 reports exactly that. The one
+# job that needs it grants it to itself below.
+permissions: {}
+
+concurrency:
+  group: prune-runs
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Prune
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Deleting a run is a write to the Actions API, and it is all this needs:
+    # no checkout, no contents access.
+    permissions:
+      actions: write
+
+    steps:
+      - name: Delete runs past their retention
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          ping_cutoff=$(date -u -d '1 day ago' +%Y-%m-%dT%H:%M:%SZ)
+          other_cutoff=$(date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          echo "Keep warm older than $ping_cutoff; everything else older than $other_cutoff"
+
+          # status!=in_progress is not a filter the API offers, so completion is
+          # checked per run below rather than in the query.
+          gh api "repos/$REPO/actions/runs?per_page=100" --paginate \
+            --jq '.workflow_runs[] | [.id, .name, .created_at, .status] | @tsv' > runs.tsv
+
+          echo "Runs found: $(wc -l < runs.tsv)"
+
+          deleted=0
+          kept=0
+
+          while IFS=$'\t' read -r id name created status; do
+            if [[ "$status" != "completed" ]]; then
+              kept=$((kept + 1))
+              continue
+            fi
+
+            if [[ "$name" == "Keep warm" ]]; then
+              cutoff="$ping_cutoff"
+            else
+              cutoff="$other_cutoff"
+            fi
+
+            # ISO-8601 in UTC sorts lexicographically, so a string compare is a
+            # date compare here and needs no parsing.
+            if [[ "$created" < "$cutoff" ]]; then
+              if [[ "$DRY_RUN" == "true" ]]; then
+                echo "would delete: $created  $name"
+              else
+                gh api -X DELETE "repos/$REPO/actions/runs/$id" --silent || true
+              fi
+              deleted=$((deleted + 1))
+            else
+              kept=$((kept + 1))
+            fi
+          done < runs.tsv
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "Dry run: $deleted would be deleted, $kept kept."
+          else
+            echo "Deleted $deleted, kept $kept."
+          fi
+
+          # This workflow's own run is in `kept` — it is still in progress while
+          # it counts itself, which the status check above deliberately allows.
