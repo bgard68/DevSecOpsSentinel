@@ -30,6 +30,12 @@ public sealed class OpenAiWorkflowAiProvider : IWorkflowAiProvider
         string sanitizedContent,
         CancellationToken cancellationToken)
     {
+        // The file name arrives in the request, and a value containing a line break would
+        // let a caller forge extra lines in any text log sink. Structured logging keeps it a
+        // property in JSON sinks, but the console rendering is still a text line. One control
+        // character is enough to matter; none survive this.
+        string safeFileName = new([.. analysis.FileName.Where(c => !char.IsControl(c))]);
+
         if (_client is null)
         {
             return AiExplanationFactory.CreateFallback(
@@ -113,7 +119,7 @@ public sealed class OpenAiWorkflowAiProvider : IWorkflowAiProvider
             _logger.LogWarning(
                 exception,
                 "OpenAI request timed out for workflow {FileName}.",
-                analysis.FileName);
+                safeFileName);
 
             return AiExplanationFactory.CreateFallback(
                 analysis,
@@ -125,7 +131,7 @@ public sealed class OpenAiWorkflowAiProvider : IWorkflowAiProvider
             _logger.LogWarning(
                 exception,
                 "OpenAI request failed for workflow {FileName}.",
-                analysis.FileName);
+                safeFileName);
 
             return AiExplanationFactory.CreateFallback(
                 analysis,

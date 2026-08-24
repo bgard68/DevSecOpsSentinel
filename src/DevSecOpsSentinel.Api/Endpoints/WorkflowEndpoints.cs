@@ -26,6 +26,11 @@ public static class WorkflowEndpoints
             IWorkflowAnalysisService service,
             CancellationToken cancellationToken) =>
         {
+            if (request is null)
+            {
+                return MissingOrInvalidRequest();
+            }
+            
             IResult? validationFailure =
                 ValidateWorkflowRequest(
                     request,
@@ -39,7 +44,7 @@ public static class WorkflowEndpoints
             WorkflowAnalysisResult result =
                 await service.AnalyzeAsync(
                     new WorkflowDocument(
-                        request!.FileName,
+                        request.FileName,
                         request.Content),
                     cancellationToken);
 
@@ -70,6 +75,11 @@ public static class WorkflowEndpoints
             IRemediationReportService service,
             CancellationToken cancellationToken) =>
         {
+            if (request is null)
+            {
+                return MissingOrInvalidRequest();
+            }
+            
             IResult? validationFailure =
                 ValidateWorkflowRequest(
                     request,
@@ -83,7 +93,7 @@ public static class WorkflowEndpoints
             RemediationReport report =
                 await service.BuildAsync(
                     new WorkflowDocument(
-                        request!.FileName,
+                        request.FileName,
                         request.Content),
                     cancellationToken);
 
@@ -107,6 +117,11 @@ public static class WorkflowEndpoints
             IRemediationReportService service,
             CancellationToken cancellationToken) =>
         {
+            if (request is null)
+            {
+                return MissingOrInvalidRequest();
+            }
+            
             IResult? validationFailure =
                 ValidateWorkflowRequest(
                     request,
@@ -120,7 +135,7 @@ public static class WorkflowEndpoints
             RemediationReport report =
                 await service.BuildAsync(
                     new WorkflowDocument(
-                        request!.FileName,
+                        request.FileName,
                         request.Content),
                     cancellationToken);
 
@@ -184,13 +199,16 @@ public static class WorkflowEndpoints
             CallerAuthentication caller,
             CancellationToken cancellationToken) =>
         {
+            if (request is null)
+            {
+                return MissingOrInvalidRequest();
+            }
+
             IResult? validationFailure =
                 ValidateWorkflowRequest(
-                    request is null
-                        ? null
-                        : new AnalyzeWorkflowRequest(
-                            request.FileName,
-                            request.Content),
+                    new AnalyzeWorkflowRequest(
+                        request.FileName,
+                        request.Content),
                     maximumWorkflowCharacters);
 
             if (validationFailure is not null)
@@ -201,7 +219,7 @@ public static class WorkflowEndpoints
             WorkflowExplanationResult result =
                 await service.ExplainAsync(
                     new WorkflowDocument(
-                        request!.FileName,
+                        request.FileName,
                         request.Content),
                     request.UseAi,
                     caller.AiAccess == AiAccess.Full
@@ -232,20 +250,28 @@ public static class WorkflowEndpoints
         return app;
     }
 
+    /// <summary>
+    /// A missing body and an invalid one produce the same problem response, but they are
+    /// checked in different places: the null test lives at each call site so the compiler —
+    /// and the analyzer — can see the proof, instead of a null-forgiving operator asserting
+    /// what a helper established somewhere else.
+    /// </summary>
+    private static IResult MissingOrInvalidRequest() =>
+        Results.BadRequest(new ProblemDetails
+        {
+            Title = "Invalid workflow request",
+            Detail = "Both fileName and content are required.",
+            Status = StatusCodes.Status400BadRequest
+        });
+
     private static IResult? ValidateWorkflowRequest(
-        AnalyzeWorkflowRequest? request,
+        AnalyzeWorkflowRequest request,
         int maximumCharacters)
     {
-        if (request is null ||
-            string.IsNullOrWhiteSpace(request.FileName) ||
+        if (string.IsNullOrWhiteSpace(request.FileName) ||
             string.IsNullOrWhiteSpace(request.Content))
         {
-            return Results.BadRequest(new ProblemDetails
-            {
-                Title = "Invalid workflow request",
-                Detail = "Both fileName and content are required.",
-                Status = StatusCodes.Status400BadRequest
-            });
+            return MissingOrInvalidRequest();
         }
 
         if (request.Content.Length > maximumCharacters)

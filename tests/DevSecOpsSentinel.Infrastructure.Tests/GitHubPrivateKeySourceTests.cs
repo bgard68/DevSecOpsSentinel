@@ -22,7 +22,7 @@ public sealed class GitHubPrivateKeySourceTests : IDisposable
 
     private readonly string _pem = CreatePem();
 
-    private readonly string _keyPath = Path.Combine(
+    private readonly string _keyPath = Path.Join(
         Path.GetTempPath(),
         $"sentinel-key-{Guid.NewGuid():N}.pem");
 
@@ -122,7 +122,7 @@ public sealed class GitHubPrivateKeySourceTests : IDisposable
     {
         GitHubPrivateKeySource source = new(new GitHubOptions
         {
-            PrivateKeyPath = Path.Combine(Path.GetTempPath(), "does-not-exist.pem")
+            PrivateKeyPath = Path.Join(Path.GetTempPath(), "does-not-exist.pem")
         });
 
         Assert.False(source.IsAvailable);
