@@ -188,19 +188,29 @@ jobs:
           BASE_URL: ${{ vars.API_BASE_URL }}
         run: |
           set -uo pipefail
+          # Two rules, each earned by a deploy that failed without them:
+          #
+          # /ready, not /live — liveness answers as soon as the process listens, before the
+          # app can serve, and the smoke test then measured a half-started app (500 on every
+          # endpoint, including readiness itself).
+          #
+          # Consecutive successes, not one — webapps-deploy returns while the OLD process is
+          # still serving, so a single 200 can come from the outgoing instance seconds before
+          # the restart. The smoke test then landed mid-restart and saw the same 500s. Three
+          # in a row spanning twenty seconds cannot all be the doomed instance.
+          streak=0
           for attempt in $(seq 1 30); do
-            # /live, not /ready, was the original poll target, and it answers as soon as the
-            # process is listening — before the container has finished resolving. The smoke
-            # test then ran against a half-started app and reported 500 on every endpoint,
-            # including "Health readiness expected 200 got 500", which is the readiness probe
-            # saying it was not ready while the liveness probe said the app was up. That is
-            # the distinction the two endpoints exist for; the wait was asking the wrong one.
             code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$BASE_URL/api/health/ready" || true)
             if [[ "$code" == "200" ]]; then
-              echo "up after ${attempt} attempt(s)"
-              exit 0
+              streak=$((streak + 1))
+              if [[ "$streak" -ge 3 ]]; then
+                echo "ready: 3 consecutive 200s by attempt ${attempt}"
+                exit 0
+              fi
+            else
+              streak=0
             fi
-            echo "attempt ${attempt}: HTTP ${code:-none}"
+            echo "attempt ${attempt}: HTTP ${code:-none} (streak ${streak})"
             sleep 10
           done
           echo "::error::App did not return 200 from /api/health/ready within the wait window."
