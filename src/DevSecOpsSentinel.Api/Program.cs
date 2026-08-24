@@ -115,17 +115,13 @@ string scenarioDirectory = Path.Combine(
     "Scenarios");
 
 builder.Services.AddSingleton<IWorkflowParser, WorkflowParser>();
-builder.Services.AddSingleton<IWorkflowSecurityRule, UnpinnedActionRule>();
-builder.Services.AddSingleton<IWorkflowSecurityRule, ExcessivePermissionsRule>();
-builder.Services.AddSingleton<IWorkflowSecurityRule, MissingTimeoutRule>();
-builder.Services.AddSingleton<IWorkflowSecurityRule, UnsafePullRequestTargetRule>();
-builder.Services.AddSingleton<IWorkflowSecurityRule, ScriptInjectionRule>();
-builder.Services.AddSingleton<IWorkflowSecurityRule, PersistedCredentialsRule>();
-builder.Services.AddSingleton<IWorkflowSecurityRule, UntrustedCheckoutRule>();
-builder.Services.AddSingleton<IWorkflowSecurityRule, InheritedSecretsRule>();
-builder.Services.AddSingleton<IWorkflowSecurityRule, UndeclaredPermissionsRule>();
-builder.Services.AddSingleton<IWorkflowSecurityRule, SelfHostedRunnerRule>();
-builder.Services.AddSingleton<IWorkflowSecurityRule, ArtifactPoisoningRule>();
+// Discovered, not listed. A rule added to Infrastructure and forgotten here would never
+// run, and nothing would report it — the failure is silence, which is why this is not a
+// hand-maintained list. RuleDiscovery is the single source the tests and the eval use too.
+foreach (IWorkflowSecurityRule rule in RuleDiscovery.All())
+{
+    builder.Services.AddSingleton(rule);
+}
 builder.Services.AddSingleton<IWorkflowPatchGenerator, WorkflowPatchGenerator>();
 builder.Services.AddSingleton<IWorkflowAnalysisService, WorkflowAnalysisService>();
 builder.Services.AddSingleton<IRemediationReportService, RemediationReportService>();
