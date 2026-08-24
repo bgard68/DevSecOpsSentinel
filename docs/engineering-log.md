@@ -617,3 +617,173 @@ a subject string another system generates, a platform that restarts after a
 deployment — none is visible in the tree, so no linter, test or review of the
 diff could have found them. The first deployment is itself a test, and it is the
 only one that runs the environment.
+
+
+---
+
+## 19. A rule demanded a setting GitHub rejects
+
+**What was wrong.** `MissingTimeoutRule` reported every job without
+`timeout-minutes`, including jobs that call a reusable workflow — where GitHub
+does not accept `timeout-minutes` at all. The finding asked for an edit that
+makes the workflow invalid, and because GHA003 is marked automatically fixable,
+the remediation preview would have offered exactly that patch.
+
+**How it was found.** On the first run of the golden corpus. The
+`inherited-secrets.yml` fixture expected GHA008 alone; the scanner returned
+GHA008 and a spurious GHA003.
+
+**Why nothing caught it.** `SecurityRuleTests` writes the fixture and the
+assertion together, so they agree by construction. It can prove a rule fires on
+input built to provoke it; it structurally cannot prove a rule stays quiet on
+input it should ignore, because no test constructs that input.
+
+**What changed.** The rule skips reusable-workflow callers, with the GitHub
+constraint documented at the skip.
+
+**What prevents recurrence.** The corpus in `tests/DevSecOpsSentinel.Evals`:
+expected findings are written from reading the rules, not from running them, so
+a disagreement means something real. Spurious and missed findings are reported
+as different defects, because they are.
+
+---
+
+## 20. Deploy was dead for a week and reported nothing
+
+**What was wrong.** The repository restricts Actions to an allowlist of pinned
+SHAs. Dependabot bumped `azure/login` and `Azure/static-web-apps-deploy` past
+the allowlisted SHAs, and GitHub refused to start the workflow — reported as
+`startup_failure`, before any job runs, with no logs and nothing naming the
+action. Three deploys died that way between 17 and 24 August.
+
+**How it was found.** A routine status sweep noticed `Deploy=startup_failure`
+on main. The workflow file itself was valid: `actionlint` passed it, every
+pinned SHA existed, and the job graph was sound — which is what pointed away
+from the file and toward policy.
+
+**Why nothing caught it.** A security control and a bot disagreed, and the
+failure mode has no logs. The run list was also drowning in keep-warm entries
+(426 of 881), so the red marks were invisible in practice.
+
+**What changed.** The allowlist was updated to the current SHAs, and
+`.github/allowed-actions.txt` now mirrors the repository setting, with
+`scripts/check-action-allowlist.ps1` failing CI when a workflow references
+anything absent from it — so the next bump fails on the pull request, with the
+action named, instead of silently disabling deployment after merge. Runs are
+pruned nightly so a real failure is visible in the list.
+
+**What prevents recurrence.** The guard cannot read the live policy (that would
+need an admin token CI should not hold), so the mirror file states plainly that
+both must move together.
+
+---
+
+## 21. The deploy gate measured the wrong instance, twice
+
+**What was wrong.** First: the post-deploy wait polled `/api/health/live`,
+which answers as soon as the process listens — before the app can serve. The
+smoke test then ran against a half-started app and reported 500 on every
+endpoint, including readiness itself saying it was not ready. Second, after
+fixing that: `webapps-deploy` returns while the old process is still serving,
+so a single `/ready` 200 could come from the outgoing instance seconds before
+the restart, and the smoke test landed mid-restart with the same signature.
+
+**How it was found.** The smoke output itself: readiness expected 200, got 500
+— while the wait step had already seen a 200. The same deployment served 200
+everywhere once probed after settling. The build was fine; the gate measured
+too early.
+
+**What changed.** The wait polls readiness, and requires three consecutive
+200s spanning twenty seconds. One ready answer proves the old instance was
+alive; three in a row cannot all be the doomed instance.
+
+**What prevents recurrence.** Both rules are commented in `deploy.yml` with the
+failure each one was earned by.
+
+---
+
+## 22. A stale response wiped newer results
+
+**What was wrong.** The scenario-loading effect checks its guard when the
+effect starts, but its promise resolves later — by which point the user may
+have switched tabs and produced results. The resolution then called
+`resetResults()` and wiped them. In production the window is milliseconds; the
+public-scan tests hit it deterministically, because in a test every pending
+microtask resolves after the interactions finish.
+
+**How it was found.** The first two public-scan UI tests failed with an empty
+results panel and no error — the scan had completed and then been erased.
+
+**What changed.** The effect returns a cleanup that sets a cancelled flag, so
+a response arriving after a tab switch is a no-op.
+
+**What prevents recurrence.** The public-scan tests fail on regression, and the
+pattern is commented at the effect: the guard runs at start time, the promise
+resolves at cancel-or-apply time.
+
+---
+
+## 23. Endpoint options no test host could influence
+
+**What was wrong.** `Program` read `GitHubOptions` from configuration before
+`Build()` and passed the snapshot into the endpoint mappers as a parameter.
+`WebApplicationFactory` configuration lands after that read, so integration
+tests could set `GitHub:Enabled` to true and the endpoints would still see the
+appsettings default — a second source of truth, and one that would silently
+disagree with the container's copy if registration ever changed.
+
+**How it was found.** Writing `/api/github` endpoint tests: a factory that
+configured GitHub fully still got `enabled: false` from the status endpoint,
+while the allowlist tests passed — which localised the problem to the snapshot,
+not the binding.
+
+**What changed.** Handlers resolve `GitHubOptions` and `OpenAiOptions` from DI
+per request. Tests replace the singleton, which is the supported seam.
+
+**What prevents recurrence.** One source of truth: nothing holds a pre-Build
+copy of options any more, and ten endpoint tests now cover the status ladder,
+allowlist refusals and analysis paths.
+
+---
+
+## 24. The strongest claim ran only in production
+
+**What was wrong.** The OpenAI provider constructed its `ChatClient` internally,
+so everything between request assembly and the containment gate — the timeout
+envelope, deserialization, the gate call, every fallback — could not run under
+test. The pipeline the replay corpus exists to exercise was provable only up to
+the gate, never through it. Coverage said 14%, and the missing part was the
+live path.
+
+**How it was found.** The first coverage measurement this repository ever had.
+
+**What changed.** The one call that leaves the process is an injectable
+delegate. The public constructor wraps the real client; an internal constructor
+substitutes transport. The full replay corpus — injection cases included — now
+drives the entire provider, and each recorded reply must produce the
+user-visible outcome its gate verdict implies.
+
+**What prevents recurrence.** Coverage is measured (backend 92.4%, frontend 95%
+of authored code at the time of writing), and the seam is the documented
+pattern for the next outbound integration.
+
+---
+
+## 25. A fix that traded one silence for another
+
+**What was wrong.** Test cleanup swallowed every exception with an empty
+catch-all. The first fix narrowed the exception types — and left the bodies
+empty, which trades one CodeQL finding for another: the same defect wearing a
+different rule id. An empty catch discards the one piece of evidence anyone
+debugging a full temp disk would need.
+
+**How it was found.** CodeQL, both times. The zero-open-alerts state had just
+become an invariant, so the two new notes surfaced immediately.
+
+**What changed.** Cleanup failures write the leftover path and the reason to
+test error output. The run still passes — a temp directory surviving is
+survivable; invisibly surviving is not.
+
+**What prevents recurrence.** House rule, stated here and enforced by CodeQL on
+every push: no empty catch blocks anywhere, tests included. A caught exception
+is accounted for, or it is not caught.
