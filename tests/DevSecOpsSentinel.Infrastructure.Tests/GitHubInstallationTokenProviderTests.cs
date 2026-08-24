@@ -145,17 +145,18 @@ public sealed class GitHubInstallationTokenProviderTests : IDisposable
 
     public void Dispose()
     {
-        // Best-effort cleanup of the per-test key directory; only the failures a
-        // filesystem delete can actually produce are worth swallowing.
+        // Best-effort cleanup of the per-test key directory. A failure must not fail
+        // the test run, but it is never silent: the leftover path and the reason go to
+        // the test output, because an empty catch discards the one piece of evidence
+        // anyone debugging a full temp disk would need.
         try
         {
             Directory.Delete(_keyDirectory, recursive: true);
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-        }
-        catch (UnauthorizedAccessException)
-        {
+            Console.Error.WriteLine(
+                $"Test cleanup left '{_keyDirectory}' behind: {exception.Message}");
         }
     }
 }
