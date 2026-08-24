@@ -32,7 +32,15 @@ Show:
 - before/after risk reduction
 - workflow comparison or unified diff
 
-### 3. Show exports — 45 seconds
+### 3. Scan a repository the audience picks — 60 seconds
+
+Open **Public repo** and ask for any public repository they work on. Every
+workflow file is fetched anonymously and analysed in seconds; nothing is
+written and no credential is attached. If they hesitate, scan this repository
+itself — the three findings that come back are the documented, test-enforced
+exceptions, which is a stronger close than a clean report.
+
+### 4. Show exports — 45 seconds
 
 Export one or two formats, emphasizing:
 

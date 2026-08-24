@@ -61,6 +61,19 @@ Full descriptions in [docs/architecture/rules.md](docs/architecture/rules.md).
 — pick a scenario and analyse it. The API is open for anonymous analysis, with
 the AI layer in Mock mode so a stranger cannot spend anything.
 
+Or scan **any public repository on GitHub** from the *Public repo* tab — type
+`owner/name`, get per-file findings in seconds. No token, no signup; private
+repositories are invisible to an anonymous scan by construction.
+
+![The scanner scanning its own repository](docs/assets/screenshots/04-public-repo-self-scan.png)
+
+That screenshot is this repository scanned by its own deployed instance: seven
+workflows, four clean, and three findings — each one a write permission that is
+the documented minimum for its job, registered in
+[RepositoryWorkflowsTests](tests/DevSecOpsSentinel.Infrastructure.Tests/RepositoryWorkflowsTests.cs)
+with the reason, where CI fails if the register drifts in either direction. A
+tool that hides its own findings cannot be trusted about yours.
+
 Or from a terminal, against the deployed API:
 
 ```bash
