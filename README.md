@@ -11,7 +11,7 @@ an optional AI layer explains them and provably cannot invent them.
 Built with .NET 10, React and TypeScript, a read-only GitHub App, and the OpenAI
 API.
 
-![Connected dashboard](docs/assets/screenshots/01-connected-dashboard.png)
+![The deployed workspace, open to anyone](docs/assets/screenshots/01-connected-dashboard.png)
 
 ---
 
