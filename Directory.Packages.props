@@ -13,7 +13,7 @@
       for GHSA-v5pm-xwqc-g5wc. No project directly references this package.
     -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
-    <PackageVersion Include="Scalar.AspNetCore" Version="2.16.20" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.17.1" />
     <PackageVersion Include="OpenAI" Version="2.13.0" />
     <!--
       Structural workflow parsing. The rule engine keeps its own line model for
