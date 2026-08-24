@@ -134,7 +134,7 @@ public sealed class OpenAiWorkflowAiProvider : IWorkflowAiProvider
         }
     }
 
-    private static bool IsValid(OpenAiExplanationPayload payload, WorkflowAnalysisResult analysis)
+    internal static bool IsValid(OpenAiExplanationPayload payload, WorkflowAnalysisResult analysis)
     {
         HashSet<string> expected = analysis.Findings.Select(finding => finding.RuleId).ToHashSet(StringComparer.Ordinal);
         HashSet<string> received = payload.Findings.Select(finding => finding.RuleId).ToHashSet(StringComparer.Ordinal);
@@ -170,13 +170,13 @@ public sealed class OpenAiWorkflowAiProvider : IWorkflowAiProvider
     }
     """;
 
-    private sealed record OpenAiExplanationPayload(
+    internal sealed record OpenAiExplanationPayload(
         string Summary,
         IReadOnlyList<OpenAiFindingPayload> Findings,
         string RecommendedNextStep,
         IReadOnlyList<string> Limitations);
 
-    private sealed record OpenAiFindingPayload(
+    internal sealed record OpenAiFindingPayload(
         string RuleId,
         string WhyItMatters,
         string RecommendedAction,
