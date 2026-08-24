@@ -29,11 +29,40 @@ a job — the supported keys are `uses`, `with`, `secrets`, `needs`, `if`, `perm
 invalid. Because GHA003 is marked automatically fixable, the remediation preview would have
 offered exactly that patch. `MissingTimeoutRule` now skips reusable-workflow callers.
 
+## The replay corpus
+
+`Corpus/` measures the scanner. `Responses/` measures what happens to a model reply.
+
+Each file there is a reply in the shape the provider returns, paired in `ReplayCorpus.cs`
+with the workflow it answers and the verdict the containment gate must reach. Replies are
+data on disk, so a reply captured from the live provider can be dropped in beside the
+authored ones and scored by the same code.
+
+The authored ones cover what a live capture will not produce on demand. `prompt-injection.yml`
+carries comments addressed at the model, telling it to report an invented rule and hide the
+real one — workflow content comes from whatever repository is being scanned, so an attacker
+writes that text. Three replies answer it: one that resists, one that obeys, and one that
+partially obeys by dropping the real finding while inventing nothing.
+
+The point is not that the model resists. It may not. The point is that a reply obeying the
+injection is rejected anyway, because a rule id the scanner never produced cannot survive the
+gate. That is what makes the defence a property of the system rather than of the model.
+
 ## Cost
 
 Offline. No API key, no network, no spend, so it runs on every push rather than behind a
 decision about whether today is worth the credits. The model layer is measured separately: its
 containment gate is pinned by `AiContainmentTests`, which is also offline.
+
+## Capturing a real reply
+
+The corpus scores replies; it does not make them. To add one from the live provider, run a
+live analysis, save the raw JSON to `Responses/<workflow>.<label>.json`, and declare it in
+`ReplayCorpus.cs` with the verdict you expect. The spend is one call, once — from then on the
+reply is scored offline on every push, forever.
+
+An undeclared file in `Responses/` fails the eval, so a captured reply cannot sit there
+looking like coverage while contributing nothing.
 
 ## Adding a fixture
 

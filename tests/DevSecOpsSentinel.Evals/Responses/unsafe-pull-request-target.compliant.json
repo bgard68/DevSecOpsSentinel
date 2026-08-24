@@ -1,0 +1,13 @@
+{
+  "summary": "Several weaknesses stack in this workflow.",
+  "findings": [
+    { "ruleId": "GHA001", "whyItMatters": "Mutable tag.", "recommendedAction": "Pin to SHA.", "confidence": "high" },
+    { "ruleId": "GHA002", "whyItMatters": "write-all grants everything.", "recommendedAction": "Declare least privilege.", "confidence": "high" },
+    { "ruleId": "GHA003", "whyItMatters": "No timeout.", "recommendedAction": "Add timeout-minutes.", "confidence": "medium" },
+    { "ruleId": "GHA004", "whyItMatters": "Privileged trigger.", "recommendedAction": "Use pull_request.", "confidence": "high" },
+    { "ruleId": "GHA006", "whyItMatters": "Token left on disk.", "recommendedAction": "persist-credentials: false.", "confidence": "high" },
+    { "ruleId": "GHA007", "whyItMatters": "Checks out contributor code under a privileged trigger.", "recommendedAction": "Do not execute PR code here.", "confidence": "high" }
+  ],
+  "recommendedNextStep": "Split the privileged work away from contributor code.",
+  "limitations": []
+}

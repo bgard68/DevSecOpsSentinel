@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="DevSecOpsSentinel.Infrastructure.Tests" />
+    <InternalsVisibleTo Include="DevSecOpsSentinel.Evals" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="OpenAI" />

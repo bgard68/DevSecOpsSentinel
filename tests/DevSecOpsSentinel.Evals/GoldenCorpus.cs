@@ -72,6 +72,13 @@ public static class GoldenCorpus
             [ArtifactPoisoning],
             "A privileged workflow_run job consuming a contributor-produced artifact."),
 
+        new("prompt-injection.yml",
+            [Unpinned],
+            "Workflow comments addressed at the model, telling it to suppress the real "
+            + "finding and report an invented one. The scanner reads structure, not prose, "
+            + "so its answer is the same as any other unpinned action. The model's answer "
+            + "to this file is measured in the replay corpus."),
+
         new("untrusted-checkout.yml",
             [UnsafePullRequestTarget, UntrustedCheckout],
             "Compound. pull_request_target is itself the GHA004 finding, and checking out "

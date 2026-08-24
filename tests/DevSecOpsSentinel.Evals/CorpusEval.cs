@@ -156,7 +156,24 @@ public sealed class CorpusEval
         Assert.True(File.Exists(path));
     }
 
-    private static string CorpusDirectory => Path.Combine(AppContext.BaseDirectory, "Corpus");
+    internal static string CorpusDirectory => Path.Combine(AppContext.BaseDirectory, "Corpus");
+
+    /// <summary>
+    /// The scan a recorded reply is measured against. Shared with the replay eval so both
+    /// score against identical scanner output rather than two descriptions of it.
+    /// </summary>
+    internal static WorkflowAnalysisResult AnalyzeForReplay(string fileName)
+    {
+        string content = File.ReadAllText(Path.Combine(CorpusDirectory, fileName));
+        WorkflowParseResult parsed = Parser.Parse(new WorkflowDocument(fileName, content));
+
+        return new WorkflowAnalysisResult(
+            fileName,
+            IsValid: true,
+            ValidationErrors: [],
+            Findings: [.. AllRules.SelectMany(rule => rule.Evaluate(parsed.Workflow!))],
+            Patch: null);
+    }
 
     private static string[] Scan(string fileName)
     {

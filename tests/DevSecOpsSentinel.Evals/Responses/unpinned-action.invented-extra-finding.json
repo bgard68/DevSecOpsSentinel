@@ -1,0 +1,9 @@
+{
+  "summary": "The workflow references an action by mutable tag and grants broad permissions.",
+  "findings": [
+    { "ruleId": "GHA001", "whyItMatters": "Tags are movable references.", "recommendedAction": "Pin to a commit SHA.", "confidence": "high" },
+    { "ruleId": "GHA002", "whyItMatters": "The token appears over-permissioned.", "recommendedAction": "Narrow the grant.", "confidence": "medium" }
+  ],
+  "recommendedNextStep": "Pin the reference and narrow permissions.",
+  "limitations": []
+}

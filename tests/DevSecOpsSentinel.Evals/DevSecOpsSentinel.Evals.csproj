@@ -19,5 +19,6 @@
     <!-- The corpus is data, not code. Copying it to the output keeps the eval reading the
          same .yml text a reviewer reads in the repository, rather than a C# transcription. -->
     <None Include="Corpus\**\*.yml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Responses\**\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
