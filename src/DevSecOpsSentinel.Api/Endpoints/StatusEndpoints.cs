@@ -20,7 +20,9 @@ namespace DevSecOpsSentinel.Api.Endpoints;
 /// </summary>
 public static class StatusEndpoints
 {
-    public static WebApplication MapStatusEndpoints(this WebApplication app, OpenAiOptions openAiOptions, GitHubOptions gitHubOptions)
+    // Same rule as GitHubEndpoints: options resolve from DI at request time, not from a
+    // pre-Build snapshot captured into the closure.
+    public static WebApplication MapStatusEndpoints(this WebApplication app)
     {
     app.MapGet("/", () => Results.Ok(new
     {
@@ -86,7 +88,10 @@ public static class StatusEndpoints
      * simulated results as real ones — an integration configured for live use and
      * unable to reach its service reports exactly that.
      */
-    app.MapGet("/api/health/ready", (IGitHubPrivateKeySource privateKeySource) =>
+    app.MapGet("/api/health/ready", (
+        OpenAiOptions openAiOptions,
+        GitHubOptions gitHubOptions,
+        IGitHubPrivateKeySource privateKeySource) =>
     {
         bool gitHubDegraded =
             gitHubOptions.Enabled &&
@@ -122,7 +127,7 @@ public static class StatusEndpoints
         });
     });
 
-    app.MapGet("/api/ai/status", () =>
+    app.MapGet("/api/ai/status", (OpenAiOptions openAiOptions) =>
     {
         bool configured =
             !string.IsNullOrWhiteSpace(openAiOptions.ApiKey);

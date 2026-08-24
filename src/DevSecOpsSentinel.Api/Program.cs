@@ -291,8 +291,8 @@ app.UseMiddleware<ApiKeyAuthenticationMiddleware>();
 app.UseRateLimiter();
 app.UseOutputCache();
 
-app.MapStatusEndpoints(openAiOptions, gitHubOptions)
-   .MapGitHubEndpoints(gitHubOptions)
+app.MapStatusEndpoints()
+   .MapGitHubEndpoints()
    .MapCatalogueEndpoints()
    .MapPublicScanEndpoints()
    .MapWorkflowEndpoints(maximumWorkflowCharacters);

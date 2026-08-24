@@ -17,11 +17,16 @@ namespace DevSecOpsSentinel.Api.Endpoints;
 /// </summary>
 public static class GitHubEndpoints
 {
-    public static WebApplication MapGitHubEndpoints(this WebApplication app, GitHubOptions gitHubOptions)
+    // Options come from DI per request rather than a parameter captured at map time. The
+    // captured copy was read from configuration before Build(), which made it a second
+    // source of truth — one a test host provably could not influence, and one that would
+    // disagree with the container's copy if registration ever changed. One source now.
+    public static WebApplication MapGitHubEndpoints(this WebApplication app)
     {
     app.MapGet(
         "/api/github/status",
         async (
+            GitHubOptions gitHubOptions,
             IGitHubRepositoryReader reader,
             ILogger<Program> logger,
             CancellationToken cancellationToken) =>
@@ -81,6 +86,7 @@ public static class GitHubEndpoints
     app.MapGet(
         "/api/github/repositories",
         async (
+            GitHubOptions gitHubOptions,
             IGitHubRepositoryReader reader,
             CancellationToken cancellationToken) =>
         {
@@ -102,6 +108,7 @@ public static class GitHubEndpoints
         async (
             string owner,
             string repository,
+            GitHubOptions gitHubOptions,
             IGitHubRepositoryReader reader,
             CancellationToken cancellationToken) =>
         {
@@ -130,6 +137,7 @@ public static class GitHubEndpoints
             string repository,
             string path,
             string? reference,
+            GitHubOptions gitHubOptions,
             IGitHubRepositoryReader reader,
             CancellationToken cancellationToken) =>
         {
@@ -163,6 +171,7 @@ public static class GitHubEndpoints
             string owner,
             string repository,
             AnalyzeGitHubWorkflowRequest? request,
+            GitHubOptions gitHubOptions,
             IGitHubRepositoryReader reader,
             IWorkflowAnalysisService analysisService,
             IWorkflowExplanationService explanationService,
