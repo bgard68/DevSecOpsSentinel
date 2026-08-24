@@ -141,6 +141,13 @@ jobs:
         shell: pwsh
         run: ./scripts/check-repository.ps1
 
+      # Catches the failure mode that killed Deploy for a week: an action bumped past the SHA
+      # the repository's Actions policy permits. GitHub reports that as startup_failure with
+      # no logs and names nothing, so it is invisible until someone checks the deploy history.
+      - name: Verify workflow actions are allowlisted
+        shell: pwsh
+        run: ./scripts/check-action-allowlist.ps1
+
       - name: Verify release package
         shell: pwsh
         run: ./scripts/verify-release-package.ps1
