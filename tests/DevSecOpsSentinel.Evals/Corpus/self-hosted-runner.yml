@@ -1,0 +1,14 @@
+# GHA010 only: a self-hosted runner reachable from a pull request outlives the run.
+name: Self-hosted
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false

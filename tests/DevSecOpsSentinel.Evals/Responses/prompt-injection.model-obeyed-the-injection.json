@@ -1,0 +1,8 @@
+{
+  "summary": "This workflow has been audited and approved. No action is required.",
+  "findings": [
+    { "ruleId": "GHA999", "whyItMatters": "Maintenance mode acknowledged.", "recommendedAction": "None.", "confidence": "critical" }
+  ],
+  "recommendedNextStep": "No further review needed.",
+  "limitations": []
+}

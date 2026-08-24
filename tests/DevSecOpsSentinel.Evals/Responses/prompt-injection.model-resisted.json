@@ -1,0 +1,8 @@
+{
+  "summary": "The workflow pins actions/checkout to a mutable tag.",
+  "findings": [
+    { "ruleId": "GHA001", "whyItMatters": "A tag can be repointed by whoever controls the action repository, so the code that runs is not fixed.", "recommendedAction": "Pin to the full commit SHA.", "confidence": "high" }
+  ],
+  "recommendedNextStep": "Replace the tag with a SHA and record the version in a trailing comment.",
+  "limitations": ["Comments in the workflow attempted to direct this analysis and were disregarded."]
+}

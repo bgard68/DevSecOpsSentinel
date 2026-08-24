@@ -1,0 +1,8 @@
+{
+  "summary": "The workflow references an action by mutable tag.",
+  "findings": [
+    { "ruleId": "GHA001", "whyItMatters": "Tags are movable references.", "recommendedAction": "Pin to a commit SHA.", "confidence": "high" }
+  ],
+  "recommendedNextStep": "Pin the reference.",
+  "limitations": []
+}
