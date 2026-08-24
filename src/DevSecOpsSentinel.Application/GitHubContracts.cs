@@ -82,3 +82,35 @@ public interface IWorkflowActionReferenceResolver
         string actionReference,
         CancellationToken cancellationToken);
 }
+
+// Moved here from Infrastructure. The Api layer injects this into the readiness endpoint, so
+// leaving it beside its implementation had the outer layer depending on an abstraction the
+// outer layer also owned — the one place in this project where that was true. Every other
+// contract is declared by the layer that needs it and implemented further out; this one now
+// matches.
+
+/// <summary>
+/// Supplies the GitHub App private key, from configuration or from a file.
+///
+/// A file path is workable on a developer machine and unworkable on a hosted
+/// platform: App Service application settings and Key Vault references deliver a
+/// value, not a file. Reading the key only from disk is what stopped this
+/// application being deployable.
+///
+/// Configuration wins when both are present, so a deployment cannot be
+/// accidentally served by a stale file left on the host.
+/// </summary>
+public interface IGitHubPrivateKeySource
+{
+    /// <summary>
+    /// True when a key can be obtained. Answers the readiness probe without
+    /// throwing, and without holding key material to find out.
+    /// </summary>
+    bool IsAvailable { get; }
+
+    /// <summary>Describes where the key comes from. Contains no key material.</summary>
+    string Description { get; }
+
+    /// <summary>The PEM text. Throws when no key is configured.</summary>
+    string ReadPem();
+}

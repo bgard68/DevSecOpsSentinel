@@ -1,7 +1,7 @@
-using System.Reflection;
 using DevSecOpsSentinel.Application;
 using DevSecOpsSentinel.Domain;
 using DevSecOpsSentinel.Infrastructure;
+using DevSecOpsSentinel.Infrastructure.Rules;
 
 namespace DevSecOpsSentinel.Evals;
 
@@ -21,21 +21,10 @@ public sealed class CorpusEval
     private static readonly WorkflowParser Parser = new();
 
     /// <summary>
-    /// Discovered from the assembly rather than listed here. A hand-maintained list is the
-    /// one thing guaranteed to drift: a rule added to Infrastructure and forgotten here would
-    /// simply never be measured, and nothing would say so.
+    /// The same discovery the composition root registers from, so the eval scores the rules
+    /// the application actually runs rather than a second opinion about what they are.
     /// </summary>
-    private static readonly IReadOnlyList<IWorkflowSecurityRule> AllRules =
-    [
-        .. typeof(WorkflowParser).Assembly
-            .GetTypes()
-            .Where(type => typeof(IWorkflowSecurityRule).IsAssignableFrom(type))
-            .Where(type => type is { IsAbstract: false, IsInterface: false })
-            .Where(type => type.GetConstructor(Type.EmptyTypes) is not null)
-            .Select(Activator.CreateInstance)
-            .Cast<IWorkflowSecurityRule>()
-            .OrderBy(rule => rule.RuleId, StringComparer.Ordinal)
-    ];
+    private static readonly IReadOnlyList<IWorkflowSecurityRule> AllRules = RuleDiscovery.All();
 
     public static TheoryData<string> CorpusFiles()
     {
