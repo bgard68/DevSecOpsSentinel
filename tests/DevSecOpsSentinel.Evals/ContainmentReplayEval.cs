@@ -52,6 +52,30 @@ public sealed class ContainmentReplayEval
              """);
     }
 
+    [Theory]
+    [MemberData(nameof(Replies))]
+    public async Task The_full_provider_reaches_the_same_verdict_as_the_gate(string responseFile)
+    {
+        // The gate tests prove the comparison; this proves the pipeline around it. Each
+        // recorded reply is served through the provider's transport seam, so prompt
+        // assembly, deserialization, the gate and the fallback all run exactly as they do
+        // against the live API — and the user-visible outcome (a live explanation versus
+        // the deterministic fallback) must agree with the per-reply verdict.
+        ReplayEntry entry = ReplayCorpus.Entries.Single(candidate => candidate.ResponseFile == responseFile);
+        WorkflowAnalysisResult analysis = CorpusEval.AnalyzeForReplay(entry.WorkflowFile);
+        string reply = File.ReadAllText(Path.Join(ResponsesDirectory, entry.ResponseFile));
+
+        var provider = new OpenAiWorkflowAiProvider(
+            new OpenAiOptions { ApiKey = string.Empty, Model = "test", TimeoutSeconds = 5, MaximumContextCharacters = 10_000 },
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<OpenAiWorkflowAiProvider>.Instance,
+            (_, _, _) => Task.FromResult(reply));
+
+        WorkflowAiExplanation explanation =
+            await provider.ExplainAsync(analysis, "sanitized", CancellationToken.None);
+
+        Assert.Equal(entry.ShouldBeAccepted, explanation.GeneratedByAi);
+    }
+
     [Fact]
     public void No_invented_rule_id_is_ever_accepted()
     {

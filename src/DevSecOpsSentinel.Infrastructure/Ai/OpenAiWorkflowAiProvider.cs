@@ -8,10 +8,25 @@ namespace DevSecOpsSentinel.Infrastructure.Ai;
 
 public sealed class OpenAiWorkflowAiProvider : IWorkflowAiProvider
 {
+    /// <summary>
+    /// The one call that leaves the process, as a seam.
+    ///
+    /// Everything around it — prompt assembly, the timeout envelope, payload parsing, the
+    /// containment gate, every fallback — was unreachable offline while the provider built
+    /// its ChatClient internally, which meant the pipeline the replay corpus exists to
+    /// exercise could only be proven up to the gate, never through it. The delegate carries
+    /// the request the production path would send; tests substitute the transport and
+    /// nothing else.
+    /// </summary>
+    internal delegate Task<string> CompleteChat(
+        IReadOnlyList<ChatMessage> messages,
+        ChatCompletionOptions options,
+        CancellationToken cancellationToken);
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly OpenAiOptions _options;
     private readonly ILogger<OpenAiWorkflowAiProvider> _logger;
-    private readonly ChatClient? _client;
+    private readonly CompleteChat? _completeChat;
 
     public OpenAiWorkflowAiProvider(
         OpenAiOptions options,
@@ -21,8 +36,26 @@ public sealed class OpenAiWorkflowAiProvider : IWorkflowAiProvider
         _logger = logger;
         if (!string.IsNullOrWhiteSpace(options.ApiKey))
         {
-            _client = new ChatClient(options.Model, options.ApiKey);
+            ChatClient client = new(options.Model, options.ApiKey);
+            _completeChat = async (messages, completionOptions, cancellationToken) =>
+            {
+                ChatCompletion completion = await client.CompleteChatAsync(
+                    [.. messages],
+                    completionOptions,
+                    cancellationToken);
+                return completion.Content[0].Text;
+            };
         }
+    }
+
+    internal OpenAiWorkflowAiProvider(
+        OpenAiOptions options,
+        ILogger<OpenAiWorkflowAiProvider> logger,
+        CompleteChat completeChat)
+    {
+        _options = options;
+        _logger = logger;
+        _completeChat = completeChat;
     }
 
     public async Task<WorkflowAiExplanation> ExplainAsync(
@@ -36,7 +69,7 @@ public sealed class OpenAiWorkflowAiProvider : IWorkflowAiProvider
         // character is enough to matter; none survive this.
         string safeFileName = new([.. analysis.FileName.Where(c => !char.IsControl(c))]);
 
-        if (_client is null)
+        if (_completeChat is null)
         {
             return AiExplanationFactory.CreateFallback(
                 analysis,
@@ -86,12 +119,7 @@ public sealed class OpenAiWorkflowAiProvider : IWorkflowAiProvider
                     jsonSchemaIsStrict: true)
             };
 
-            ChatCompletion completion = await _client.CompleteChatAsync(
-                messages,
-                completionOptions,
-                timeout.Token);
-
-            string json = completion.Content[0].Text;
+            string json = await _completeChat(messages, completionOptions, timeout.Token);
             OpenAiExplanationPayload? payload = JsonSerializer.Deserialize<OpenAiExplanationPayload>(json, JsonOptions);
             if (payload is null || !IsValid(payload, analysis))
             {
