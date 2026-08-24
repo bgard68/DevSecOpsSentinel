@@ -1,0 +1,12 @@
+# The sandbox's compound case: several weaknesses stacked, as they appear in the wild.
+name: Unsafe pull_request_target
+on:
+  pull_request_target:
+permissions: write-all
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
