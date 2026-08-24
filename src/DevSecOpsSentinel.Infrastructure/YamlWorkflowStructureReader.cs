@@ -102,15 +102,27 @@ internal static class YamlWorkflowStructureReader
             // permissions:
             //   contents: write
             case YamlMappingNode mapping:
-                return mapping.Children
-                    .Where(child =>
-                        child.Key is YamlScalarNode &&
-                        child.Value is YamlScalarNode)
-                    .Select(child => new WorkflowPermissionEntry(
-                        ((YamlScalarNode)child.Key).Value ?? string.Empty,
-                        ((YamlScalarNode)child.Value).Value ?? string.Empty,
-                        LineOf(child.Value)))
-                    .ToArray();
+            {
+                // Written as a loop rather than Where/Select because the test and the use are
+                // in separate lambdas there, so a declaration pattern in the predicate cannot
+                // reach the projection and both nodes have to be cast again — the cast the
+                // pattern exists to remove, and a second place for the two type tests to
+                // disagree. Here each node is bound once, by the test that proved its type.
+                List<WorkflowPermissionEntry> entries = [];
+
+                foreach ((YamlNode key, YamlNode value) in mapping.Children)
+                {
+                    if (key is YamlScalarNode name && value is YamlScalarNode grant)
+                    {
+                        entries.Add(new WorkflowPermissionEntry(
+                            name.Value ?? string.Empty,
+                            grant.Value ?? string.Empty,
+                            LineOf(value)));
+                    }
+                }
+
+                return entries;
+            }
 
             default:
                 return [];
