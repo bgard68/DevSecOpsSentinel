@@ -10,8 +10,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DevSecOpsSentinel.Infrastructure.Tests;
 
-public sealed class PublicRepositoryScannerTests
+public sealed class PublicRepositoryScannerTests : IDisposable
 {
+    private readonly MemoryCache _cache = new(new MemoryCacheOptions());
+
+    public void Dispose() => _cache.Dispose();
+
     private const string VulnerableWorkflow = """
         name: CI
         on:
@@ -133,7 +137,7 @@ public sealed class PublicRepositoryScannerTests
         Assert.Equal(PublicScanStatus.NoWorkflows, result.Status);
     }
 
-    private static PublicRepositoryScanner Scanner(FakeGitHub github) =>
+    private PublicRepositoryScanner Scanner(FakeGitHub github) =>
         new(
             github,
             new WorkflowAnalysisService(
@@ -144,7 +148,7 @@ public sealed class PublicRepositoryScannerTests
                     RuleDiscovery.All(),
                     new NeverResolvesActionReferenceResolver(),
                     new GitHubOptions())),
-            new MemoryCache(new MemoryCacheOptions()),
+            _cache,
             TimeProvider.System,
             NullLogger<PublicRepositoryScanner>.Instance);
 
@@ -193,27 +197,37 @@ public sealed class PublicRepositoryScannerTests
                 HttpRequestMessage request,
                 CancellationToken cancellationToken)
             {
+                // Ownership of these responses transfers to the caller: the scanner
+                // disposes the listing via `using`, and GetStringAsync disposes the raw
+                // response internally. Built in methods that return them directly so the
+                // transfer is visible to analysis.
                 string url = request.RequestUri!.ToString();
+                return Task.FromResult(url.Contains("/contents/.github/workflows")
+                    ? BuildListingResponse()
+                    : BuildRawResponse(url));
+            }
 
-                if (url.Contains("/contents/.github/workflows"))
+            private HttpResponseMessage BuildListingResponse()
+            {
+                fake.ListingRequests++;
+                HttpResponseMessage response = new(fake.ListingStatus)
                 {
-                    fake.ListingRequests++;
-                    HttpResponseMessage response = new(fake.ListingStatus)
-                    {
-                        Content = new StringContent(fake._listingBody, Encoding.UTF8, "application/json")
-                    };
-                    if (fake.RateLimitRemaining is not null)
-                    {
-                        response.Headers.Add("X-RateLimit-Remaining", fake.RateLimitRemaining);
-                    }
-
-                    return Task.FromResult(response);
+                    Content = new StringContent(fake._listingBody, Encoding.UTF8, "application/json")
+                };
+                if (fake.RateLimitRemaining is not null)
+                {
+                    response.Headers.Add("X-RateLimit-Remaining", fake.RateLimitRemaining);
                 }
 
+                return response;
+            }
+
+            private HttpResponseMessage BuildRawResponse(string url)
+            {
                 fake.RawRequests.Add(url);
-                return Task.FromResult(fake._raw.TryGetValue(url, out string? content)
+                return fake._raw.TryGetValue(url, out string? content)
                     ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(content) }
-                    : new HttpResponseMessage(HttpStatusCode.NotFound));
+                    : new HttpResponseMessage(HttpStatusCode.NotFound);
             }
         }
     }
