@@ -16,6 +16,7 @@ import {
   getScenarios,
   getRemediationReport,
   downloadRemediationExport,
+  getPublicScan,
 } from './api';
 import type {
   AiStatus,
@@ -29,10 +30,11 @@ import type {
   WorkflowExplanationResult,
   WorkflowFinding,
   RemediationReport,
+  PublicScanResult,
 } from './models';
 
 const severityOrder = ['Critical', 'High', 'Medium', 'Low'];
-type SourceMode = 'simulation' | 'github';
+type SourceMode = 'simulation' | 'github' | 'public';
 type ResultTab = 'findings' | 'remediation' | 'comparison' | 'advisor';
 
 function getRiskLabel(findings: WorkflowFinding[]) {
@@ -83,6 +85,8 @@ function App() {
   const [selectedWorkflowPath, setSelectedWorkflowPath] = useState('');
   const [gitHubSource, setGitHubSource] = useState<GitHubWorkflowFile | null>(null);
   const [remediation, setRemediation] = useState<RemediationReport | null>(null);
+  const [publicRepoInput, setPublicRepoInput] = useState('');
+  const [publicScan, setPublicScan] = useState<PublicScanResult | null>(null);
 
   useEffect(() => {
     getSecurityStatus()
@@ -119,9 +123,18 @@ function App() {
 
   useEffect(() => {
     if (sourceMode !== 'simulation' || !selectedId) return;
+    // The guard above runs when the effect starts; the promise resolves later,
+    // by which point the user may have switched tabs and produced results this
+    // callback would wipe. Cancellation makes the stale response a no-op — the
+    // public-scan tests caught exactly that clobber.
+    let cancelled = false;
     getScenario(selectedId).then((scenario) => {
+      if (cancelled) return;
       setFileName(scenario.fileName); setContent(scenario.content); resetResults();
-    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Scenario could not be loaded.'));
+    }).catch((reason: unknown) => {
+      if (!cancelled) setError(reason instanceof Error ? reason.message : 'Scenario could not be loaded.');
+    });
+    return () => { cancelled = true; };
   }, [selectedId, sourceMode]);
 
   useEffect(() => {
@@ -199,11 +212,19 @@ function App() {
     resetResults();
   }
 
-  function resetResults() { setResult(null); setExplanation(null); setRemediation(null); setActiveResultTab('findings'); setError(''); }
+  function resetResults() { setResult(null); setExplanation(null); setRemediation(null); setPublicScan(null); setActiveResultTab('findings'); setError(''); }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setIsLoading(true); setError(''); setResult(null); setExplanation(null); setRemediation(null); setActiveResultTab(includeAi ? 'advisor' : 'findings');
     try {
+      if (sourceMode === 'public') {
+        const [owner, ...rest] = publicRepoInput.trim().replace(/^https?:\/\/github\.com\//i, '').split('/');
+        const repository = rest.join('/').replace(/\/.*$/, '') || rest[0];
+        if (!owner || !repository) throw new Error('Enter a repository as owner/name, e.g. facebook/react.');
+        setPublicScan(await getPublicScan(owner, repository));
+        setMobilePane('results');
+        return;
+      }
       if (sourceMode === 'github') {
         if (!selectedRepository || !selectedWorkflowPath) throw new Error('Select a GitHub workflow first.');
         const [owner, repository] = selectedRepository.split('/');
@@ -302,6 +323,7 @@ function App() {
     <div className="source-switcher" role="tablist" aria-label="Workflow source">
       <button type="button" role="tab" aria-selected={sourceMode === 'simulation'} className={sourceMode === 'simulation' ? 'active' : ''} onClick={() => { setSourceMode('simulation'); resetResults(); }}>Simulation</button>
       <button type="button" role="tab" aria-selected={sourceMode === 'github'} className={sourceMode === 'github' ? 'active' : ''} onClick={() => { setSourceMode('github'); resetResults(); }}>GitHub Sandbox <span className="read-only-tag">READ ONLY</span></button>
+      <button type="button" role="tab" aria-selected={sourceMode === 'public'} className={sourceMode === 'public' ? 'active' : ''} onClick={() => { setSourceMode('public'); resetResults(); }}>Public repo <span className="read-only-tag">NO SIGN-IN</span></button>
     </div>
 
     {/* Phone only; CSS hides it once both panes fit side by side. */}
@@ -317,9 +339,13 @@ function App() {
     </div>
 
     <section className="workspace" data-mobile-pane={mobilePane}><form className="control-panel" onSubmit={submit}>
-      <div className="panel-heading"><div><span className="panel-kicker">Analysis workspace</span><h2>{sourceMode === 'github' ? 'GitHub workflow' : 'Workflow input'}</h2></div><span className={`mode-pill ${sourceMode === 'github' ? 'mode-pill-readonly' : 'mode-pill-safe'}`}>{sourceMode === 'github' ? 'Read only' : 'Simulation'}</span></div>
+      <div className="panel-heading"><div><span className="panel-kicker">Analysis workspace</span><h2>{sourceMode === 'github' ? 'GitHub workflow' : sourceMode === 'public' ? 'Public repository' : 'Workflow input'}</h2></div><span className={`mode-pill ${sourceMode === 'simulation' ? 'mode-pill-safe' : 'mode-pill-readonly'}`}>{sourceMode === 'github' ? 'Read only' : sourceMode === 'public' ? 'Anonymous' : 'Simulation'}</span></div>
 
-      {sourceMode === 'simulation' ? <>
+      {sourceMode === 'public' ? <>
+        <label htmlFor="public-repo">Public repository</label>
+        <input id="public-repo" placeholder="owner/repository — e.g. facebook/react" value={publicRepoInput} onChange={(event) => setPublicRepoInput(event.target.value)} autoComplete="off" spellCheck={false} />
+        <p className="scenario-description">Every workflow under .github/workflows is fetched anonymously and run through the deterministic rules. Nothing is written, no credential is attached, and results are cached for ten minutes — a popular repository costs one fetch, not one per visitor.</p>
+      </> : sourceMode === 'simulation' ? <>
         <label htmlFor="scenario">Sample scenario</label><select id="scenario" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.name}</option>)}</select>
         {selectedScenario && <p className="scenario-description">{selectedScenario.description}</p>}
         <label htmlFor="file-name">Workflow file</label><input id="file-name" value={fileName} onChange={(event) => setFileName(event.target.value)} />
@@ -330,16 +356,34 @@ function App() {
         {gitHubSource && <div className="source-metadata"><span>Branch <strong>{gitHubSource.defaultBranch}</strong></span><span>SHA <code>{gitHubSource.sha.slice(0, 10)}</code></span><a href={gitHubSource.htmlUrl} target="_blank" rel="noreferrer">View on GitHub</a></div>}
       </>}
 
+      {sourceMode !== 'public' && <>
       <div className="editor-label-row"><label htmlFor="workflow">Workflow YAML</label><span>{content.length.toLocaleString()} characters</span></div>
       <div className="editor-shell"><div className="editor-toolbar"><span className="editor-dot" /><span className="editor-dot" /><span className="editor-dot" /><strong>{fileName}</strong>{sourceMode === 'github' && <span className="editor-readonly">READ ONLY</span>}</div><textarea id="workflow" value={content} onChange={(event) => setContent(event.target.value)} spellCheck={false} readOnly={sourceMode === 'github'} aria-describedby="workflow-help" /></div>
 
       <div className="ai-control-card"><label className="ai-toggle" htmlFor="include-ai"><input id="include-ai" type="checkbox" aria-label="Include AI explanation" checked={includeAi} onChange={(event) => setIncludeAi(event.target.checked)} disabled={aiStatus?.enabled === false} /><span><strong>Include AI explanation</strong><small>Explain confirmed findings and remediation steps.</small></span></label><span className="mode-pill">{aiModeLabel}</span></div>
       <p id="workflow-help" className="helper-text">{sourceMode === 'github' ? 'The selected GitHub workflow is retrieved and analyzed without modifying the repository.' : 'Live AI mode sends sanitized context; Mock mode uses no credits.'}</p>
-      <button className="primary-action" type="submit" disabled={isLoading || content.trim().length === 0 || (sourceMode === 'github' && !selectedWorkflowPath)}>{isLoading ? <><span className="spinner" aria-hidden="true" />Loading…</> : sourceMode === 'github' ? 'Analyze GitHub workflow' : 'Analyze workflow'}</button>
+      </>}
+      <button className="primary-action" type="submit" disabled={isLoading || (sourceMode === 'public' ? !publicRepoInput.includes('/') : content.trim().length === 0 || (sourceMode === 'github' && !selectedWorkflowPath))}>{isLoading ? <><span className="spinner" aria-hidden="true" />Loading…</> : sourceMode === 'github' ? 'Analyze GitHub workflow' : sourceMode === 'public' ? 'Scan public repository' : 'Analyze workflow'}</button>
       {error && <p className="error" role="alert">{error}</p>}
     </form>
 
-    <section className="results" aria-live="polite">{!result && !error && <div className="empty-state"><div className="empty-icon" aria-hidden="true">✓</div><h2>{sourceMode === 'github' ? 'Select a GitHub workflow' : 'Ready to analyze'}</h2><p>{sourceMode === 'github' ? 'Choose an allowlisted repository and workflow. DevSecOps Sentinel will read and analyze it without making repository changes.' : 'Select a scenario or edit the YAML, then run the scanner.'}</p></div>}
+    <section className="results" aria-live="polite">{sourceMode === 'public' && publicScan && <>
+      <div className="summary-grid">
+        <article className="metric-card"><span>Repository</span><strong>{publicScan.owner}/{publicScan.repository}</strong><small>{publicScan.fromCache ? 'Cached result' : 'Fetched live'}</small></article>
+        <article className="metric-card"><span>Workflows scanned</span><strong>{publicScan.files.length}</strong><small>{publicScan.skippedFiles > 0 ? `${publicScan.skippedFiles} skipped (size/cap)` : 'All within limits'}</small></article>
+        <article className="metric-card"><span>With findings</span><strong>{publicScan.files.filter((file) => file.analysis.findings.length > 0).length}</strong><small>{publicScan.files.filter((file) => file.analysis.findings.length === 0).length} clean</small></article>
+        <article className="metric-card"><span>Total findings</span><strong>{publicScan.files.reduce((sum, file) => sum + file.analysis.findings.length, 0)}</strong><small>Deterministic rules only</small></article>
+      </div>
+      {publicScan.status === 'NoWorkflows' && <div className="success-card"><strong>The repository has no workflow files.</strong><span>{publicScan.detail}</span></div>}
+      {publicScan.files.map((file) => <section className="findings-panel" key={file.fileName}>
+        <div className="section-heading"><div><span className="panel-kicker">{file.analysis.findings.length === 0 ? 'Clean' : getRiskLabel(file.analysis.findings)} · {file.analysis.findings.length} finding{file.analysis.findings.length === 1 ? '' : 's'}</span><h2>{file.fileName}</h2></div><a className="result-badge" href={file.htmlUrl} target="_blank" rel="noreferrer">View on GitHub</a></div>
+        {file.analysis.findings.length === 0
+          ? <div className="success-card"><strong>No configured rule violations were detected.</strong><span>This workflow passed all deterministic checks.</span></div>
+          : severityOrder.flatMap((severity) => file.analysis.findings.filter((finding) => finding.severity === severity)).map((finding) => <article className={`finding finding-${finding.severity.toLowerCase()}`} key={`${file.fileName}-${finding.ruleId}-${finding.lineNumber}`}><div className="finding-heading"><span className={`severity severity-${finding.severity.toLowerCase()}`}>{finding.severity}</span><code>{finding.ruleId}</code>{finding.lineNumber && <span>Line {finding.lineNumber}</span>}</div><h3>{finding.title}</h3><p>{finding.description}</p><div className="recommendation"><strong>Recommended remediation</strong><span>{finding.recommendation}</span></div></article>)}
+      </section>)}
+    </>}
+    {sourceMode === 'public' && !publicScan && !error && <div className="empty-state"><div className="empty-icon" aria-hidden="true">✓</div><h2>Scan any public repository</h2><p>Enter owner/repository. Every workflow file is fetched read-only and analyzed; private repositories are invisible to an anonymous scan.</p></div>}
+    {sourceMode !== 'public' && <>{!result && !error && <div className="empty-state"><div className="empty-icon" aria-hidden="true">✓</div><h2>{sourceMode === 'github' ? 'Select a GitHub workflow' : 'Ready to analyze'}</h2><p>{sourceMode === 'github' ? 'Choose an allowlisted repository and workflow. DevSecOps Sentinel will read and analyze it without making repository changes.' : 'Select a scenario or edit the YAML, then run the scanner.'}</p></div>}
       {result && <><div className="summary-grid"><article className="metric-card"><span>Risk level</span><strong className={`risk-${riskLabel.toLowerCase().replace(' ', '-')}`}>{riskLabel}</strong><small>Deterministic findings</small></article><article className="metric-card"><span>Total findings</span><strong>{result.findingCount ?? findings.length}</strong><small>{countBySeverity(findings, 'Critical')} critical · {countBySeverity(findings, 'High')} high</small></article><article className="metric-card"><span>Auto-fixes</span><strong>{result.patch?.appliedRuleIds.length ?? 0}</strong><small>Proposed only</small></article><article className="metric-card"><span>Source</span><strong>{sourceMode === 'github' ? 'GitHub' : 'Local'}</strong><small>{sourceMode === 'github' ? 'Read-only retrieval' : 'Simulation scenario'}</small></article></div>
         <nav className="result-tabs" aria-label="Analysis result sections"><button type="button" className={activeResultTab === 'findings' ? 'active' : ''} onClick={() => setActiveResultTab('findings')}>Findings <span>{result.findingCount}</span></button><button type="button" disabled={!remediation} className={activeResultTab === 'remediation' ? 'active' : ''} onClick={() => setActiveResultTab('remediation')}>Remediation plan</button><button type="button" className={activeResultTab === 'comparison' ? 'active' : ''} onClick={() => setActiveResultTab('comparison')}>Workflow comparison</button><button type="button" disabled={!explanation} className={activeResultTab === 'advisor' ? 'active' : ''} onClick={() => setActiveResultTab('advisor')}>AI advisor</button></nav>
         {activeResultTab === 'findings' && <section className="findings-panel"><div className="section-heading"><div><span className="panel-kicker">Authoritative results</span><h2>Deterministic findings</h2></div><span className="result-badge">{result.findingCount === 0 ? 'Compliant' : 'Action required'}</span></div>{result.findings.length === 0 ? <div className="success-card"><strong>No configured rule violations were detected.</strong><span>The workflow passed all deterministic security checks.</span></div> : sortedFindings.map((finding) => <article className={`finding finding-${finding.severity.toLowerCase()}`} key={`${finding.ruleId}-${finding.lineNumber}`}><div className="finding-heading"><span className={`severity severity-${finding.severity.toLowerCase()}`}>{finding.severity}</span><code>{finding.ruleId}</code>{finding.lineNumber && <span>Line {finding.lineNumber}</span>}{finding.isAutomaticallyFixable && <span className="auto-fix-label">Proposed fix available</span>}</div><h3>{finding.title}</h3><p>{finding.description}</p><div className="recommendation"><strong>Recommended remediation</strong><span>{finding.recommendation}</span></div></article>)}</section>}
@@ -355,7 +399,7 @@ function App() {
           <strong>The model was not used.</strong> {explanation.explanation.fallbackReason} The explanation below is deterministic text derived from the findings.
         </p>}{explanation.sensitiveContentRedacted && <p className="warning">Potentially sensitive values were redacted.</p>}<div className="advisor-summary"><span className="panel-kicker">Executive summary</span><p>{explanation.explanation.summary}</p></div>{explanation.explanation.findings.map((item) => <article className="ai-finding" key={item.ruleId}><header><code>{item.ruleId}</code><span>{item.confidence} confidence</span></header><p><strong>Why it matters</strong>{item.whyItMatters}</p><p><strong>Recommended action</strong>{item.recommendedAction}</p></article>)}</section>}
         {activeResultTab === 'comparison' && result.patch && <><div className="readonly-banner"><strong>Preview only</strong><span>Phase D does not write this patch back to GitHub.</span></div><div className="comparison"><CodePanel title="Original workflow" subtitle="Repository content" content={result.patch.originalContent} tone="original" /><CodePanel title="Proposed workflow" subtitle="Validated remediation preview" content={result.patch.proposedContent} tone="proposed" /></div></>}
-      </>}
+      </>}</>}
     </section></section>
   </main>;
 }

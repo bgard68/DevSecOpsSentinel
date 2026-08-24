@@ -174,6 +174,21 @@ builder.Services.AddHttpClient("GitHub", client =>
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 
+// The anonymous public-repository scanner. A separate named client from "GitHub" on
+// purpose: that one carries an installation token, this one must never carry anything.
+// GitHub rejects requests without a User-Agent, and asking for the JSON media type keeps
+// the contents API's answers stable.
+builder.Services.AddHttpClient("GitHubPublic", client =>
+{
+    client.BaseAddress = new Uri("https://api.github.com");
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("DevSecOpsSentinel");
+    client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+});
+
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IPublicRepositoryScanner, PublicRepositoryScanner>();
+
 builder.Services.AddSingleton<
     IGitHubPrivateKeySource,
     GitHubPrivateKeySource>();
@@ -279,6 +294,7 @@ app.UseOutputCache();
 app.MapStatusEndpoints(openAiOptions, gitHubOptions)
    .MapGitHubEndpoints(gitHubOptions)
    .MapCatalogueEndpoints()
+   .MapPublicScanEndpoints()
    .MapWorkflowEndpoints(maximumWorkflowCharacters);
 
 app.Run();

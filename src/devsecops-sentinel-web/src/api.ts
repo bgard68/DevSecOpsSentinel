@@ -1,5 +1,6 @@
 import type {
   AiStatus,
+  PublicScanResult,
   ApiSecurityStatus,
   ScenarioDetail,
   ScenarioSummary,
@@ -184,4 +185,27 @@ export async function downloadRemediationExport(fileName: string, content: strin
   anchor.download = downloadName;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+export async function getPublicScan(
+  owner: string,
+  repository: string,
+): Promise<PublicScanResult> {
+  const response = await apiFetch(
+    `/api/public-scan/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}`,
+  );
+
+  if (!response.ok) {
+    // The API answers failures with problem details whose detail is written
+    // for a person - the quota message, the not-found message. Surface it
+    // rather than a status code.
+    const problem = (await response.json().catch(() => null)) as
+      | { detail?: string; title?: string }
+      | null;
+    throw new Error(
+      problem?.detail ?? problem?.title ?? `Scan failed (${response.status}).`,
+    );
+  }
+
+  return (await response.json()) as PublicScanResult;
 }
