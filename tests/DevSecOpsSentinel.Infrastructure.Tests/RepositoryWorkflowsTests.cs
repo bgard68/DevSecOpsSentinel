@@ -42,6 +42,15 @@ public sealed class RepositoryWorkflowsTests
             [
                 ("GHA002", 1,
                     "pull-requests: write is the minimum for posting the review summary.")
+            ],
+            ["prune-runs.yml"] =
+            [
+                ("GHA002", 1,
+                    "actions: write is the minimum for deleting a workflow run, and there is "
+                    + "no narrower grant. Accepted with the cost stated: it also permits "
+                    + "deleting any run in the repository, so this job can destroy the audit "
+                    + "trail it exists to keep readable. Held to one job in one workflow that "
+                    + "checks out nothing and reads no secret.")
             ]
         };
 

@@ -30,10 +30,10 @@ on:
         type: boolean
         default: false
 
-# Deleting a run is a write to the Actions API. Nothing else is needed: no
-# checkout, no contents access.
-permissions:
-  actions: write
+# Nothing at workflow scope: a write granted here would apply to every job the
+# file ever grows, and this project's own GHA002 reports exactly that. The one
+# job that needs it grants it to itself below.
+permissions: {}
 
 concurrency:
   group: prune-runs
@@ -44,6 +44,11 @@ jobs:
     name: Prune
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    # Deleting a run is a write to the Actions API, and it is all this needs:
+    # no checkout, no contents access.
+    permissions:
+      actions: write
 
     steps:
       - name: Delete runs past their retention
