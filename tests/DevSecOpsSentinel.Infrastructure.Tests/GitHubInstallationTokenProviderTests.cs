@@ -145,6 +145,17 @@ public sealed class GitHubInstallationTokenProviderTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_keyDirectory, recursive: true); } catch { /* best effort */ }
+        // Best-effort cleanup of the per-test key directory; only the failures a
+        // filesystem delete can actually produce are worth swallowing.
+        try
+        {
+            Directory.Delete(_keyDirectory, recursive: true);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 }
