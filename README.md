@@ -246,10 +246,17 @@ repositories — 564 files from dotnet/runtime, pytorch/pytorch, grafana/grafana
 facebook/react, nodejs/node and others:
 
 - **564 of 564 parsed** — nothing in the wild broke the parser
-- **533 (94%) carry at least one finding**; 31 are clean
-- **2,601 findings**, led by unpinned actions (796) and missing timeouts (789)
+- **532 (94%) carry at least one finding**; 32 are clean
+- **2,563 findings**, led by unpinned actions (796) and missing timeouts (789)
 - The sharper tail: **27** `pull_request_target` trust-boundary findings and
   **20** artifact-poisoning surfaces
+
+Establishing need is measurable on the same corpus. GHA002 reported at **High**
+fell from **346 to 104**, and every one of the 27 `pull_request_target` sites
+moved off Critical, because none of them checks out pull-request code. The 242
+findings that left those two bands were not hidden: 27 are grants an action in
+the job cannot work without, now listed as examined and accepted, and the rest
+moved to the severity their scope actually carries.
 
 A finding is not an exploit — most are hygiene, and these are healthy, actively
 maintained projects. The point is coverage and precision at field scale.
