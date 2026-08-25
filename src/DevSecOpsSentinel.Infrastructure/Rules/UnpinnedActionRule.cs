@@ -41,11 +41,11 @@ public sealed partial class UnpinnedActionRule : IWorkflowSecurityRule
 
     [GeneratedRegex(
         @"uses:\s*[^@\s]+@([^\s#]+)",
-        RegexOptions.IgnoreCase)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ActionReferenceRegex();
 
     [GeneratedRegex(
         "^[a-f0-9]{40}$",
-        RegexOptions.IgnoreCase)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex FullShaRegex();
 }

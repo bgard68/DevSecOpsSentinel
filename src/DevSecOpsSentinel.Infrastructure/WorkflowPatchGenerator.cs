@@ -273,6 +273,6 @@ public sealed partial class WorkflowPatchGenerator(
 
     [GeneratedRegex(
         @"uses:\s*(?<reference>[^@\s#]+@(?<version>[^\s#]+))",
-        RegexOptions.IgnoreCase)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ActionReferenceRegex();
 }
