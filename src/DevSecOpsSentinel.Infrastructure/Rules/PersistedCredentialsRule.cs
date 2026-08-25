@@ -70,6 +70,40 @@ public sealed class PersistedCredentialsRule : IWorkflowSecurityRule
         return findings;
     }
 
+    /// <summary>
+    /// The checkouts this rule accepted because the job goes on to push with the
+    /// credential they left behind.
+    /// </summary>
+    public IReadOnlyList<WorkflowAcknowledgement> Acknowledge(ParsedWorkflow workflow)
+    {
+        List<WorkflowAcknowledgement> accepted = [];
+
+        foreach (WorkflowStructuredJob job in workflow.Structure.Jobs)
+        {
+            int jobEnd = EndOfJob(workflow, job);
+
+            foreach (WorkflowStructuredStep step in job.Steps)
+            {
+                if (!step.IsAction("actions", "checkout") ||
+                    !LeavesCredentialsOnDisk(step) ||
+                    !PushesLater(workflow, step, jobEnd))
+                {
+                    continue;
+                }
+
+                accepted.Add(new WorkflowAcknowledgement(
+                    RuleId,
+                    "The persisted credential is used, not merely left behind",
+                    $"A later step in job '{job.Name}' pushes with the job token, so "
+                        + "persist-credentials must stay true here. Setting it false "
+                        + "would break the push, so it is not reported.",
+                    step.UsesLine ?? step.Line));
+            }
+        }
+
+        return accepted;
+    }
+
     private static bool LeavesCredentialsOnDisk(WorkflowStructuredStep step)
     {
         WorkflowInputValue? configured = step.Input("persist-credentials");

@@ -101,6 +101,18 @@ internal static class ActionPermissionRequirements
         steps.Any(step => RequiredScopes(step)
             .Any(required => required.Equals(scope, StringComparison.OrdinalIgnoreCase)));
 
+    /// <summary>
+    /// The action in these steps that requires this scope, or null when none
+    /// does. Naming it lets a report say which step the grant is for rather than
+    /// only that something needed it.
+    /// </summary>
+    internal static string? RequiredBy(
+        IEnumerable<WorkflowStructuredStep> steps,
+        string scope) =>
+        steps.FirstOrDefault(step => RequiredScopes(step)
+                .Any(required => required.Equals(scope, StringComparison.OrdinalIgnoreCase)))
+            ?.Uses;
+
     /// <summary>The scopes this step's action requires, empty for an unlisted one.</summary>
     private static IEnumerable<string> RequiredScopes(WorkflowStructuredStep step)
     {

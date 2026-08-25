@@ -8,4 +8,11 @@ public sealed record WorkflowAnalysisResult(
     WorkflowPatch? Patch)
 {
     public int FindingCount => Findings.Count;
+
+    /// <summary>
+    /// Grants and configurations a rule examined and accepted, with the reason.
+    /// Deliberately separate from <see cref="Findings"/> so accepting something
+    /// never inflates the finding count or the risk level.
+    /// </summary>
+    public IReadOnlyList<WorkflowAcknowledgement> Acknowledgements { get; init; } = [];
 }

@@ -41,11 +41,20 @@ public sealed class WorkflowAnalysisService(
                 findings,
                 cancellationToken);
 
+        WorkflowAcknowledgement[] acknowledgements = rules
+            .SelectMany(rule => rule.Acknowledge(parseResult.Workflow))
+            .OrderBy(entry => entry.LineNumber ?? int.MaxValue)
+            .ThenBy(entry => entry.RuleId, StringComparer.Ordinal)
+            .ToArray();
+
         return new WorkflowAnalysisResult(
             document.FileName,
             true,
             Array.Empty<string>(),
             findings,
-            patch);
+            patch)
+        {
+            Acknowledgements = acknowledgements
+        };
     }
 }

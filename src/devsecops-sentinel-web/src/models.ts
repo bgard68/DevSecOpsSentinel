@@ -39,6 +39,14 @@ export interface WorkflowPatch {
   referenceResolutionWarnings: string[];
 }
 
+/** Something a rule examined and accepted. Never counted as a finding. */
+export interface WorkflowAcknowledgement {
+  ruleId: string;
+  title: string;
+  detail: string;
+  lineNumber: number | null;
+}
+
 export interface WorkflowAnalysisResult {
   fileName: string;
   isValid: boolean;
@@ -46,6 +54,7 @@ export interface WorkflowAnalysisResult {
   findings: WorkflowFinding[];
   patch: WorkflowPatch | null;
   findingCount: number;
+  acknowledgements?: WorkflowAcknowledgement[];
 }
 
 export interface AiFindingExplanation {
