@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+### Added
+
+- Findings can be accepted in the workflow that carries them:
+  `# sentinel:accept GHA002 - reason`. In the workflow rather than a separate
+  file of rule/line/reason entries, because line numbers there drift on the
+  first edit, the reason ends up far from what it explains, and the file
+  outlives the code it was written about. Three refusals keep it a judgement
+  recorder rather than a mute button: an acceptance with no reason is ignored
+  and the finding still reports; acceptance is matched on rule *and* line, so
+  one cannot cover a second finding elsewhere; and an acceptance that no longer
+  matches a finding is reported as GHA012. Documented in
+  `docs/accepting-findings.md`.
+- Analysis results carry acknowledgements — what a rule examined and accepted —
+  separately from findings. Removing a finding left silence where the reasoning
+  used to be, and a workflow reported clean gave no way to tell that a grant was
+  examined from the rule never having looked. They are not findings because the
+  client reads any finding as action required, and a correct workflow must not
+  be pushed into that state by the check that cleared it.
+
+### Changed
+
+- GHA002, GHA004 and GHA006 establish need before reporting. GHA002 knows what
+  each of 24 published actions cannot work without, so a CodeQL job holding
+  `security-events: write` is no longer reported as excessive — the rule's own
+  remediation was already satisfied by the configuration it flagged, and
+  following the advice would have broken code scanning. GHA004 is Critical only
+  when a job checks out the pull request's head, and Low otherwise. GHA006 stays
+  quiet when a script after the checkout, in the same job, pushes with the
+  credential.
+- GHA002 severity follows what the scope can do once a token is stolen instead
+  of being constant: `contents`, `packages` and `actions` High; `security-events`,
+  `checks` and `statuses` Low; everything else Medium, including scopes GitHub
+  adds later. Rating a scope that can push code the same as one that can hide an
+  alert flattens the difference a severity exists to express.
+- `RepositoryWorkflowsTests` measures this repository the way the product
+  reports, acceptances included. It previously called the rules directly, which
+  bypassed the service where acceptance is applied and held this repository to a
+  stricter standard than the tool applies to anyone else's. Its exemption table
+  is now empty: two entries are recognised by the rule itself, and the third is
+  stated in `prune-runs.yml`.
+
 ## 1.4.0 — 2026-08-05
 
 ### Added

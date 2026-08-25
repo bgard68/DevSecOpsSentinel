@@ -15,6 +15,7 @@
 | [architecture/README.md](architecture/README.md) | Layers, trust boundaries, deliberate exclusions |
 | [architecture/program-flow.md](architecture/program-flow.md) | What happens on a request, backend and frontend |
 | [architecture/rules.md](architecture/rules.md) | The eleven detection rules, and how to add one |
+| [accepting-findings.md](accepting-findings.md) | Stating that a finding is acceptable, and why it cannot rot |
 
 ## Engineering
 

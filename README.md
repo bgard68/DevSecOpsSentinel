@@ -55,6 +55,79 @@ Full descriptions in [docs/architecture/rules.md](docs/architecture/rules.md).
 
 ---
 
+## What it refuses to report
+
+A rule that reports every match is easy. The harder half is not reporting the
+configuration that is already correct.
+
+`github/codeql-action/analyze` uploads its results through the code-scanning
+API, which requires `security-events: write`. A permissions rule that flags
+every write grant reports that as excessive — and its own advice, "grant only
+the specific write permission required by the job", has already been followed.
+Telling the author to remove it asks them to break code scanning to satisfy a
+scanner. This project carried three such grants in its own workflows, each with
+a hand-written exemption in the test suite explaining that the rule was wrong.
+
+So three rules establish need before reporting:
+
+- **GHA002** knows which scopes an action cannot work without — 24 of them, as a
+  lookup rather than an inference, so the rule stays deterministic. A job-scoped
+  grant an action in that job requires is not reported. A grant nothing requires
+  still is, and its severity now follows what the scope can do: `contents` and
+  `packages` can push code and publish artefacts; `security-events` can hide an
+  alert. Both were High, which flattens a real difference and teaches a reader
+  to skim the band that matters.
+- **GHA004** reported the `pull_request_target` trigger as Critical on its
+  presence alone. The trigger exists so a workflow can label a fork's pull
+  request — work `pull_request` cannot do. It is Critical when a job checks out
+  the pull request's head, and Low otherwise.
+- **GHA006** told a job to remove the credential it pushes with. It stays quiet
+  when a script after the checkout, in the same job, actually pushes.
+
+Suppression is narrow on purpose in each case: a missing entry costs a false
+positive, while a wrong one silently hides a real finding. Every acceptance in
+the test suite is paired with the neighbouring case that must still report.
+
+---
+
+## Accepting a finding
+
+Some findings are correct and still acceptable. Deleting a workflow run needs
+`actions: write`, and there is no narrower grant — a judgement a lookup table
+cannot make. That decision is stated in the workflow it belongs to:
+
+```yaml
+permissions:
+  # sentinel:accept GHA002 - deleting a workflow run has no narrower grant,
+  # and the cost is stated: this also permits deleting any run in the
+  # repository. Held to one job that checks out nothing and reads no secret.
+  actions: write
+```
+
+Not a separate file of rule/line/reason entries. Line numbers there drift the
+moment anyone edits the workflow, the reason ends up far from what it explains,
+and the file outlives the code it was written about. A comment is deleted by the
+same edit that deletes what it annotates, and a reviewer sees it appear in the
+diff beside what it waves away.
+
+Three refusals keep it a judgement recorder rather than a mute button:
+
+| | |
+| --- | --- |
+| No reason | The acceptance is ignored and the finding still reports |
+| Wrong line or rule | Matched on both, so one acceptance cannot cover a second finding |
+| Outlived its finding | Reported as GHA012 — an acceptance that no longer matches anything reads as considered when nothing considered it |
+
+Nothing disappears. An accepted finding moves into **Reviewed and accepted**
+carrying its original severity and the stated reason, so a suppressed Critical
+is quiet rather than invisible — and the interface separates a documented
+requirement from a person's judgement, because only the second can be wrong
+about the risk.
+
+[docs/accepting-findings.md](docs/accepting-findings.md) has the full syntax.
+
+---
+
 ## Try it
 
 **Live, no signup:** <https://gentle-ground-047e1fb10.7.azurestaticapps.net>
@@ -193,6 +266,7 @@ Methodology, per-repository table and reproduction steps in
 | [Architecture](docs/architecture/README.md) | Layers and trust boundaries |
 | [Program flow](docs/architecture/program-flow.md) | What happens on a request |
 | [Detection rules](docs/architecture/rules.md) | All eleven, and how to add one |
+| [Accepting findings](docs/accepting-findings.md) | Stating that a finding is acceptable, and why it cannot rot |
 | [Engineering log](docs/engineering-log.md) | Defects found after "complete", and what prevents them now |
 | [CI/CD](docs/ci-cd.md) | Four workflows, path-selective builds |
 | [Scripts](docs/scripts.md) | Every script and why it exists |
@@ -206,7 +280,7 @@ Methodology, per-repository table and reproduction steps in
 - **React 19 + TypeScript 5.9**, Vite
 - **YamlDotNet** for document structure, with a line model retained for content
   inside block scalars and for line-indexed patching
-- **117 .NET tests, 4 frontend tests**, and a 25-check smoke suite that drives a
+- **322 .NET tests, 28 frontend tests**, and a 25-check smoke suite that drives a
   real server over HTTP
 - **CodeQL, Gitleaks, dependency review, Dependabot**, secret scanning with push
   protection, and SHA-pinned actions enforced by policy
@@ -230,7 +304,7 @@ half-built.
 
 ## Something worth reading
 
-[docs/engineering-log.md](docs/engineering-log.md) records eleven defects found
+[docs/engineering-log.md](docs/engineering-log.md) records twenty-six defects found
 *after* this project was first considered finished — including findings that
 never rendered in the interface, an exported patch `git apply` refused, a SARIF
 document no consumer would accept, and a protection gate that passed because it
