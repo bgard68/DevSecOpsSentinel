@@ -18,4 +18,20 @@ public sealed record WorkflowAcknowledgement(
     string RuleId,
     string Title,
     string Detail,
-    int? LineNumber);
+    int? LineNumber,
+    WorkflowAcceptedBy AcceptedBy = WorkflowAcceptedBy.Rule);
+
+/// <summary>
+/// Who decided a finding was acceptable. The two carry different weight and a
+/// reader has to be able to tell them apart: one is a fact about what an action
+/// requires, the other is a person's judgement, and only the second can be
+/// wrong about the risk.
+/// </summary>
+public enum WorkflowAcceptedBy
+{
+    /// <summary>Established by the rule - the grant is a documented requirement.</summary>
+    Rule = 0,
+
+    /// <summary>Accepted in the workflow by its author, with a stated reason.</summary>
+    Author = 1
+}

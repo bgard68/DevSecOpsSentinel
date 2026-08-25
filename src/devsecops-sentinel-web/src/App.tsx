@@ -42,13 +42,18 @@ const severityOrder = ['Critical', 'High', 'Medium', 'Low'];
 const renderAcknowledgements = (acknowledgements?: WorkflowAcknowledgement[]) =>
   acknowledgements && acknowledgements.length > 0
     ? <div className="acknowledged-card">
-        <strong>Reviewed and accepted</strong>
+        <strong>Reviewed and accepted</strong><span className="acknowledged-count">{acknowledgements.length}</span>
         {acknowledgements.map((entry) => <div className="acknowledged" key={`${entry.ruleId}-${entry.lineNumber}`}>
           <span className="acknowledged-mark" aria-hidden="true">&#10003;</span>
           <span>
             <span className="acknowledged-title">{entry.title}</span>
             <code>{entry.ruleId}</code>
             {entry.lineNumber ? <span> Line {entry.lineNumber}</span> : null}
+            {/* A documented requirement and a person's judgement are not the
+                same claim, and only the second can be wrong about the risk. */}
+            <span className={`acknowledged-by acknowledged-by-${(entry.acceptedBy ?? 'Rule').toLowerCase()}`}>
+              {entry.acceptedBy === 'Author' ? 'accepted by author' : 'required by an action'}
+            </span>
             <span className="acknowledged-detail">{entry.detail}</span>
           </span>
         </div>)}

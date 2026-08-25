@@ -45,6 +45,8 @@ export interface WorkflowAcknowledgement {
   title: string;
   detail: string;
   lineNumber: number | null;
+  /** 'Rule' when the requirement is documented; 'Author' when a person accepted it. */
+  acceptedBy?: 'Rule' | 'Author';
 }
 
 export interface WorkflowAnalysisResult {
