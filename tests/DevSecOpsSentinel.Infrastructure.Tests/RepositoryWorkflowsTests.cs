@@ -29,20 +29,17 @@ public sealed class RepositoryWorkflowsTests
     /// and the count is exact - a second finding in the same file still fails.
     /// The test also fails if an accepted finding stops appearing, so an entry
     /// that outlives its reason has to be deleted rather than quietly kept.
+    ///
+    /// Two entries were deleted under that rule when GHA002 learned which scopes
+    /// an action requires: codeql.yml's security-events: write and
+    /// dependency-review.yml's pull-requests: write are now recognised as the
+    /// minimum by the rule itself rather than excused by hand here. What is left
+    /// is the case that judgement cannot be encoded for - a grant no action
+    /// declares, kept because a human weighed it.
     /// </summary>
     private static readonly Dictionary<string, (string RuleId, int Count, string Why)[]> Accepted =
         new()
         {
-            ["codeql.yml"] =
-            [
-                ("GHA002", 1,
-                    "security-events: write is the minimum for uploading analysis results.")
-            ],
-            ["dependency-review.yml"] =
-            [
-                ("GHA002", 1,
-                    "pull-requests: write is the minimum for posting the review summary.")
-            ],
             ["prune-runs.yml"] =
             [
                 ("GHA002", 1,
