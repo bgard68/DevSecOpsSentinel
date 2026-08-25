@@ -134,6 +134,6 @@ public sealed partial class WorkflowSuppressions
     /// </summary>
     [GeneratedRegex(
         @"#\s*sentinel:accept\s+(?<rule>GHA\d{3})\b(?<reason>.*)$",
-        RegexOptions.IgnoreCase)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DirectiveRegex();
 }

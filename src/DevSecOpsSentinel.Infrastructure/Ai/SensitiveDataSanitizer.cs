@@ -48,7 +48,7 @@ public sealed partial class SensitiveDataSanitizer :
 
     [GeneratedRegex(
         "-----BEGIN [^-\\r\\n]*PRIVATE KEY-----[\\s\\S]*?-----END [^-\\r\\n]*PRIVATE KEY-----",
-        RegexOptions.IgnoreCase)]
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex PrivateKeyRegex();
 
     [GeneratedRegex(
