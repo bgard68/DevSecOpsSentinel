@@ -787,3 +787,79 @@ survivable; invisibly surviving is not.
 **What prevents recurrence.** House rule, stated here and enforced by CodeQL on
 every push: no empty catch blocks anywhere, tests included. A caught exception
 is accounted for, or it is not caught.
+
+---
+
+## 26. A rule reported the correct answer as a defect
+
+**What was wrong.** GHA002 reported every write permission granted to the job
+token. `github/codeql-action/analyze` uploads its results through the
+code-scanning API, which requires `security-events: write`, so a CodeQL job
+holding the single scope it cannot work without was reported at High — the same
+severity as a job able to push to the default branch.
+
+The remediation made it worse rather than better. "Grant only the specific write
+permission required by the job" was already satisfied by the configuration being
+flagged, so the advice could not be followed: removing the grant breaks code
+scanning. A finding that cannot be closed is not a finding, and a High that
+cannot be acted on is the one that teaches a reader to stop reading Highs.
+
+Two more rules had the same shape. GHA004 reported the `pull_request_target`
+trigger as Critical on its presence alone, so labelling a fork's pull request —
+the pattern the trigger exists for — scored what a live remote-execution path
+scores. GHA006 told a job to remove the credential it pushes with, its own
+remediation reading "unless a later step needs to push with the job token" while
+nothing established whether one did.
+
+**How it was found.** By running the analyser against a repository whose
+workflows had just been hardened to clear every finding. One survived that could
+not be fixed, and the reason it could not be fixed was that the workflow was
+already correct.
+
+**Why nothing caught it.** Every test fed the rules a fixture written to provoke
+them, so each proved the rule fires when it should. Nothing asserted that a
+correct configuration produces no finding. The self-scan — the one test fed real
+input — had an exemption table that absorbed the evidence: three hand-written
+entries, each explaining that the rule was wrong about a grant that was the
+documented minimum.
+
+The exemption table was the defect report. It had been there long enough to be
+maintained, and it read as a list of accepted risks rather than as three
+instances of one rule being wrong about the same thing.
+
+**What changed.** The three rules establish need before reporting. GHA002 holds
+a table of what each of 24 actions cannot work without — documented and static,
+so a lookup rather than an inference, which keeps the rule deterministic. GHA004
+is Critical only when a job checks out the pull request's head. GHA006 stays
+quiet only when a script after the checkout, in the same job, pushes. Severity
+follows what a scope can do rather than being constant: `contents` can push
+code, `security-events` can hide an alert, and rating both High flattened the
+difference.
+
+Removing findings created a second problem immediately. A workflow reported
+clean gave no way to tell that a grant had been examined and accepted from the
+rule never having looked. Acknowledgements carry that reasoning without becoming
+findings — the client reads any finding as action required, so shipping them as
+findings would have pushed a correct workflow into the state the check had just
+cleared it of.
+
+Two of the three exemptions were then deleted rather than migrated: the rule
+recognises those grants itself, which is a better answer than every repository
+using those actions accepting the same thing by hand. The third — `actions:
+write` for deleting a workflow run — is a judgement no table can encode, and it
+moved into the workflow as a `sentinel:accept` comment stating the cost.
+
+**What prevents recurrence.** Every case that goes quiet has a test paired with
+the neighbouring case that must still report: the same grant without the action,
+a lookalike repository name that must not borrow an exemption, a required scope
+sitting beside an unrequired one. Suppression is the expensive direction — a
+missing table entry costs a false positive, a wrong one hides a real finding.
+
+The self-scan stopped calling the rules directly. Doing so bypassed the service
+where acceptance is applied and held this repository to a stricter standard than
+the tool applies to anyone else's, which is how the exemption table came to
+exist at all. It now measures what the product reports, and fails on an
+acceptance of its own that is stale or unexplained.
+
+A standing exception is a defect report. A list of them that keeps growing is
+describing something the rule should know.
