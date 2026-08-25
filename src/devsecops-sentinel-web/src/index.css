@@ -472,3 +472,35 @@ summary { cursor: pointer; color: #b9c5d3; font-weight: 800; }
   color: rgba(148, 163, 184, 0.9);
   font-size: 0.9rem;
 }
+
+/* Who accepted it. A documented requirement is a fact; an author's acceptance
+   is a judgement that can be wrong, so the two are not styled alike. */
+.acknowledged-by {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+
+.acknowledged-by-rule {
+  background: rgba(52, 211, 153, 0.14);
+  color: rgba(110, 231, 183, 0.95);
+}
+
+.acknowledged-by-author {
+  background: rgba(148, 163, 184, 0.16);
+  color: rgba(203, 213, 225, 0.95);
+}
+
+.acknowledged-count {
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+  font-size: 0.72rem;
+  color: rgba(203, 213, 225, 0.95);
+}

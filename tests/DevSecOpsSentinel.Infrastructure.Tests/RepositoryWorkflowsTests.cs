@@ -24,32 +24,19 @@ public sealed class RepositoryWorkflowsTests
     /// <summary>
     /// Findings this repository has read and accepted, with the reason.
     ///
-    /// Not a way to quieten the scanner. Each entry is a write grant that is the
-    /// documented minimum for its job and cannot be removed without breaking it,
-    /// and the count is exact - a second finding in the same file still fails.
-    /// The test also fails if an accepted finding stops appearing, so an entry
-    /// that outlives its reason has to be deleted rather than quietly kept.
+    /// Empty, and that is the point. Every entry that used to live here now
+    /// lives in the workflow it is about: codeql.yml's and
+    /// dependency-review.yml's grants are recognised by the rule itself, and
+    /// prune-runs.yml states its own acceptance in a sentinel:accept comment
+    /// beside the grant. A reason kept in a test file is invisible to anyone
+    /// reading the workflow, and outlives the code it was written about without
+    /// anything noticing.
     ///
-    /// Two entries were deleted under that rule when GHA002 learned which scopes
-    /// an action requires: codeql.yml's security-events: write and
-    /// dependency-review.yml's pull-requests: write are now recognised as the
-    /// minimum by the rule itself rather than excused by hand here. What is left
-    /// is the case that judgement cannot be encoded for - a grant no action
-    /// declares, kept because a human weighed it.
+    /// The mechanism is still enforced: an acceptance with no reason is refused,
+    /// and one that stops matching a finding is reported.
     /// </summary>
     private static readonly Dictionary<string, (string RuleId, int Count, string Why)[]> Accepted =
-        new()
-        {
-            ["prune-runs.yml"] =
-            [
-                ("GHA002", 1,
-                    "actions: write is the minimum for deleting a workflow run, and there is "
-                    + "no narrower grant. Accepted with the cost stated: it also permits "
-                    + "deleting any run in the repository, so this job can destroy the audit "
-                    + "trail it exists to keep readable. Held to one job in one workflow that "
-                    + "checks out nothing and reads no secret.")
-            ]
-        };
+        new();
 
     private static string WorkflowDirectory()
     {
@@ -102,8 +89,29 @@ public sealed class RepositoryWorkflowsTests
             $"{fileName} did not parse: {string.Join("; ", result.Errors)}");
         ParsedWorkflow workflow = Assert.IsType<ParsedWorkflow>(result.Workflow);
 
-        List<WorkflowFinding> findings =
+        // Measured the way the product reports, not the way the rules fire: an
+        // acceptance stated in the workflow is part of the analysis, and a test
+        // that skipped it would hold this repository to a stricter standard than
+        // the tool applies to anyone else's.
+        List<WorkflowFinding> raw =
             [.. AllRules().SelectMany(rule => rule.Evaluate(workflow))];
+
+        WorkflowSuppressions suppressions = WorkflowSuppressions.Read(workflow);
+        List<WorkflowFinding> findings =
+            [.. raw.Where(finding => suppressions.For(finding) is null)];
+
+        // An acceptance that no longer matches anything, or that states no
+        // reason, is a defect in its own right - the same standard the analyser
+        // holds every other repository to.
+        Assert.True(
+            suppressions.Stale(raw).Count == 0,
+            $"{fileName} accepts findings that are no longer reported: "
+                + string.Join(", ", suppressions.Stale(raw).Select(e => $"{e.RuleId} line {e.DirectiveLine}")));
+
+        Assert.True(
+            suppressions.WithoutReason.Count == 0,
+            $"{fileName} has sentinel:accept comments with no reason on lines: "
+                + string.Join(", ", suppressions.WithoutReason));
 
         (string RuleId, int Count, string Why)[] accepted =
             Accepted.TryGetValue(fileName, out (string, int, string)[]? entries)

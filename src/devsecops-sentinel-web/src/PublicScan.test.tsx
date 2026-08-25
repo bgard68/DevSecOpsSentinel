@@ -65,6 +65,14 @@ const scanResult = {
             title: 'security-events: write is required, not excessive',
             detail: "'github/codeql-action/analyze' in job 'analyze' cannot work without it.",
             lineNumber: 8,
+            acceptedBy: 'Rule',
+          },
+          {
+            ruleId: 'GHA002',
+            title: 'Workflow grants excessive token permissions - accepted',
+            detail: 'deleting a workflow run has no narrower grant (accepted in the workflow, line 12; severity was High)',
+            lineNumber: 13,
+            acceptedBy: 'Author',
           },
         ],
       },
@@ -165,6 +173,11 @@ describe('Public repository scan', () => {
 
     await waitFor(() => expect(screen.getByText('Reviewed and accepted')).toBeInTheDocument());
     expect(screen.getByText(/security-events: write is required/)).toBeInTheDocument();
+
+    // A documented requirement and a person's judgement are different claims,
+    // and only the second can be wrong about the risk.
+    expect(screen.getByText('required by an action')).toBeInTheDocument();
+    expect(screen.getByText('accepted by author')).toBeInTheDocument();
 
     // release.yml still reads as clean: the note is not a finding.
     expect(screen.getByText(/Clean · 0 findings/)).toBeInTheDocument();

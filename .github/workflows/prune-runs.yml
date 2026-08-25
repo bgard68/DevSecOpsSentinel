@@ -48,6 +48,11 @@ jobs:
     # Deleting a run is a write to the Actions API, and it is all this needs:
     # no checkout, no contents access.
     permissions:
+      # sentinel:accept GHA002 - deleting a workflow run has no narrower grant,
+      # and the cost is stated rather than waved away: this also permits deleting
+      # any run in the repository, so the job can destroy the audit trail it
+      # exists to keep readable. Held to one job that checks out nothing and
+      # reads no secret.
       actions: write
 
     steps:
