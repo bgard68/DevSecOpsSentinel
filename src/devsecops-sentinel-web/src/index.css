@@ -420,3 +420,55 @@ summary { cursor: pointer; color: #b9c5d3; font-weight: 800; }
   border-color: #60a5fa;
   color: #dbeafe;
 }
+
+/* Reviewed and accepted -------------------------------------------------
+   A grant a rule examined and did not report. Styled quieter than any
+   finding and never coloured by severity: it is not a problem, and it must
+   not read as one sitting under a compliant result. */
+.acknowledged-card {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-left: 3px solid rgba(52, 211, 153, 0.55);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.acknowledged-card > strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.acknowledged {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 6px 0;
+}
+
+.acknowledged-mark {
+  color: rgb(52, 211, 153);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.acknowledged-title {
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.acknowledged code {
+  margin-right: 8px;
+  opacity: 0.85;
+}
+
+.acknowledged-detail {
+  display: block;
+  margin-top: 3px;
+  color: rgba(148, 163, 184, 0.9);
+  font-size: 0.9rem;
+}

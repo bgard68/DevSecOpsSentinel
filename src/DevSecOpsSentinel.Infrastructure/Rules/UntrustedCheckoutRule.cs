@@ -27,15 +27,6 @@ public sealed class UntrustedCheckoutRule : IWorkflowSecurityRule
 
     public WorkflowSeverity Severity => WorkflowSeverity.Critical;
 
-    private static readonly string[] UntrustedReferences =
-    [
-        "github.event.pull_request.head.sha",
-        "github.event.pull_request.head.ref",
-        "github.event.pull_request.merge_commit_sha",
-        "github.head_ref",
-        "refs/pull/"
-    ];
-
     public IReadOnlyList<WorkflowFinding> Evaluate(ParsedWorkflow workflow)
     {
         bool privilegedTrigger = workflow.Triggers.Any(trigger =>
@@ -55,7 +46,7 @@ public sealed class UntrustedCheckoutRule : IWorkflowSecurityRule
             })
             .Where(candidate =>
                 candidate.Reference is not null &&
-                IsUntrusted(candidate.Reference.Value))
+                UntrustedPullRequestCheckout.IsUntrusted(candidate.Reference.Value))
             .Select(candidate => new WorkflowFinding(
                 RuleId,
                 Severity,
@@ -69,8 +60,4 @@ public sealed class UntrustedCheckoutRule : IWorkflowSecurityRule
                 false))
             .ToArray();
     }
-
-    private static bool IsUntrusted(string reference) =>
-        UntrustedReferences.Any(candidate =>
-            reference.Contains(candidate, StringComparison.OrdinalIgnoreCase));
 }

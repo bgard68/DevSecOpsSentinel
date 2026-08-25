@@ -19,6 +19,7 @@ import {
   getPublicScan,
 } from './api';
 import type {
+  WorkflowAcknowledgement,
   AiStatus,
   ApiSecurityStatus,
   GitHubConnectionStatus,
@@ -34,6 +35,25 @@ import type {
 } from './models';
 
 const severityOrder = ['Critical', 'High', 'Medium', 'Low'];
+
+// Grants a rule examined and accepted, shown apart from findings so a correct
+// workflow still reads as compliant. Without this the reasoning that removed a
+// finding is invisible, and "clean" cannot be told from "never checked".
+const renderAcknowledgements = (acknowledgements?: WorkflowAcknowledgement[]) =>
+  acknowledgements && acknowledgements.length > 0
+    ? <div className="acknowledged-card">
+        <strong>Reviewed and accepted</strong>
+        {acknowledgements.map((entry) => <div className="acknowledged" key={`${entry.ruleId}-${entry.lineNumber}`}>
+          <span className="acknowledged-mark" aria-hidden="true">&#10003;</span>
+          <span>
+            <span className="acknowledged-title">{entry.title}</span>
+            <code>{entry.ruleId}</code>
+            {entry.lineNumber ? <span> Line {entry.lineNumber}</span> : null}
+            <span className="acknowledged-detail">{entry.detail}</span>
+          </span>
+        </div>)}
+      </div>
+    : null;
 type SourceMode = 'simulation' | 'github' | 'public';
 type ResultTab = 'findings' | 'remediation' | 'comparison' | 'advisor';
 
@@ -380,13 +400,14 @@ function App() {
         {file.analysis.findings.length === 0
           ? <div className="success-card"><strong>No configured rule violations were detected.</strong><span>This workflow passed all deterministic checks.</span></div>
           : severityOrder.flatMap((severity) => file.analysis.findings.filter((finding) => finding.severity === severity)).map((finding) => <article className={`finding finding-${finding.severity.toLowerCase()}`} key={`${file.fileName}-${finding.ruleId}-${finding.lineNumber}`}><div className="finding-heading"><span className={`severity severity-${finding.severity.toLowerCase()}`}>{finding.severity}</span><code>{finding.ruleId}</code>{finding.lineNumber && <span>Line {finding.lineNumber}</span>}</div><h3>{finding.title}</h3><p>{finding.description}</p><div className="recommendation"><strong>Recommended remediation</strong><span>{finding.recommendation}</span></div></article>)}
+        {renderAcknowledgements(file.analysis.acknowledgements)}
       </section>)}
     </>}
     {sourceMode === 'public' && !publicScan && !error && <div className="empty-state"><div className="empty-icon" aria-hidden="true">✓</div><h2>Scan any public repository</h2><p>Enter owner/repository. Every workflow file is fetched read-only and analyzed; private repositories are invisible to an anonymous scan.</p></div>}
     {sourceMode !== 'public' && <>{!result && !error && <div className="empty-state"><div className="empty-icon" aria-hidden="true">✓</div><h2>{sourceMode === 'github' ? 'Select a GitHub workflow' : 'Ready to analyze'}</h2><p>{sourceMode === 'github' ? 'Choose an allowlisted repository and workflow. DevSecOps Sentinel will read and analyze it without making repository changes.' : 'Select a scenario or edit the YAML, then run the scanner.'}</p></div>}
       {result && <><div className="summary-grid"><article className="metric-card"><span>Risk level</span><strong className={`risk-${riskLabel.toLowerCase().replace(' ', '-')}`}>{riskLabel}</strong><small>Deterministic findings</small></article><article className="metric-card"><span>Total findings</span><strong>{result.findingCount ?? findings.length}</strong><small>{countBySeverity(findings, 'Critical')} critical · {countBySeverity(findings, 'High')} high</small></article><article className="metric-card"><span>Auto-fixes</span><strong>{result.patch?.appliedRuleIds.length ?? 0}</strong><small>Proposed only</small></article><article className="metric-card"><span>Source</span><strong>{sourceMode === 'github' ? 'GitHub' : 'Local'}</strong><small>{sourceMode === 'github' ? 'Read-only retrieval' : 'Simulation scenario'}</small></article></div>
         <nav className="result-tabs" aria-label="Analysis result sections"><button type="button" className={activeResultTab === 'findings' ? 'active' : ''} onClick={() => setActiveResultTab('findings')}>Findings <span>{result.findingCount}</span></button><button type="button" disabled={!remediation} className={activeResultTab === 'remediation' ? 'active' : ''} onClick={() => setActiveResultTab('remediation')}>Remediation plan</button><button type="button" className={activeResultTab === 'comparison' ? 'active' : ''} onClick={() => setActiveResultTab('comparison')}>Workflow comparison</button><button type="button" disabled={!explanation} className={activeResultTab === 'advisor' ? 'active' : ''} onClick={() => setActiveResultTab('advisor')}>AI advisor</button></nav>
-        {activeResultTab === 'findings' && <section className="findings-panel"><div className="section-heading"><div><span className="panel-kicker">Authoritative results</span><h2>Deterministic findings</h2></div><span className="result-badge">{result.findingCount === 0 ? 'Compliant' : 'Action required'}</span></div>{result.findings.length === 0 ? <div className="success-card"><strong>No configured rule violations were detected.</strong><span>The workflow passed all deterministic security checks.</span></div> : sortedFindings.map((finding) => <article className={`finding finding-${finding.severity.toLowerCase()}`} key={`${finding.ruleId}-${finding.lineNumber}`}><div className="finding-heading"><span className={`severity severity-${finding.severity.toLowerCase()}`}>{finding.severity}</span><code>{finding.ruleId}</code>{finding.lineNumber && <span>Line {finding.lineNumber}</span>}{finding.isAutomaticallyFixable && <span className="auto-fix-label">Proposed fix available</span>}</div><h3>{finding.title}</h3><p>{finding.description}</p><div className="recommendation"><strong>Recommended remediation</strong><span>{finding.recommendation}</span></div></article>)}</section>}
+        {activeResultTab === 'findings' && <section className="findings-panel"><div className="section-heading"><div><span className="panel-kicker">Authoritative results</span><h2>Deterministic findings</h2></div><span className="result-badge">{result.findingCount === 0 ? 'Compliant' : 'Action required'}</span></div>{result.findings.length === 0 ? <div className="success-card"><strong>No configured rule violations were detected.</strong><span>The workflow passed all deterministic security checks.</span></div> : sortedFindings.map((finding) => <article className={`finding finding-${finding.severity.toLowerCase()}`} key={`${finding.ruleId}-${finding.lineNumber}`}><div className="finding-heading"><span className={`severity severity-${finding.severity.toLowerCase()}`}>{finding.severity}</span><code>{finding.ruleId}</code>{finding.lineNumber && <span>Line {finding.lineNumber}</span>}{finding.isAutomaticallyFixable && <span className="auto-fix-label">Proposed fix available</span>}</div><h3>{finding.title}</h3><p>{finding.description}</p><div className="recommendation"><strong>Recommended remediation</strong><span>{finding.recommendation}</span></div></article>)}{renderAcknowledgements(result.acknowledgements)}</section>}
         {activeResultTab === 'remediation' && remediation && <section className="remediation-panel"><div className="section-heading"><div><span className="panel-kicker">Validated remediation</span><h2>Risk reduction plan</h2></div><span className="result-badge">{remediation.riskReductionPercent}% reduction</span></div><div className="remediation-metrics"><article><span>Risk score</span><strong>{remediation.originalRiskScore} → {remediation.proposedRiskScore}</strong></article><article><span>Resolved</span><strong>{remediation.resolvedFindingCount}</strong></article><article><span>Remaining</span><strong>{remediation.remainingFindingCount}</strong></article><article><span>Patch</span><strong>{remediation.patchValid ? 'Valid' : 'Review'}</strong></article></div>{referenceResolutionWarnings.length > 0 && (
           <div className="warning">
             <strong>Action SHA resolution</strong>

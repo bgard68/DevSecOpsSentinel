@@ -59,6 +59,14 @@ const scanResult = {
         findings: [],
         patch: null,
         findingCount: 0,
+        acknowledgements: [
+          {
+            ruleId: 'GHA002',
+            title: 'security-events: write is required, not excessive',
+            detail: "'github/codeql-action/analyze' in job 'analyze' cannot work without it.",
+            lineNumber: 8,
+          },
+        ],
       },
     },
   ],
@@ -143,5 +151,22 @@ describe('Public repository scan', () => {
 
     await waitFor(() => expect(
       screen.getByText('No public repository with workflows was found under that name.')).toBeInTheDocument());
+  });
+
+  it('shows what a rule accepted without making the file look non-compliant', async () => {
+    // The reason a finding disappeared has to be visible, or "clean" cannot be
+    // told from "never checked". It must not count as a finding while doing it.
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('tab', { name: /Public repo/ })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('tab', { name: /Public repo/ }));
+    fireEvent.change(screen.getByLabelText('Public repository'), { target: { value: 'octo/app' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Scan public repository' }));
+
+    await waitFor(() => expect(screen.getByText('Reviewed and accepted')).toBeInTheDocument());
+    expect(screen.getByText(/security-events: write is required/)).toBeInTheDocument();
+
+    // release.yml still reads as clean: the note is not a finding.
+    expect(screen.getByText(/Clean · 0 findings/)).toBeInTheDocument();
   });
 });

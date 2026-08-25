@@ -123,6 +123,40 @@ public sealed class ExcessivePermissionsRule : IWorkflowSecurityRule
         findings.Add(ExcessiveFinding(entry, "job"));
     }
 
+    /// <summary>
+    /// The job-scoped grants this rule accepted, so the reasoning that removed a
+    /// finding is visible rather than merely absent.
+    ///
+    /// Workflow-scoped grants are not listed: those still produce a finding, so
+    /// they are already accounted for.
+    /// </summary>
+    public IReadOnlyList<WorkflowAcknowledgement> Acknowledge(ParsedWorkflow workflow)
+    {
+        List<WorkflowAcknowledgement> accepted = [];
+
+        foreach (WorkflowStructuredJob job in workflow.Structure.Jobs)
+        {
+            foreach (WorkflowPermissionEntry entry in job.Permissions)
+            {
+                if (!IsNamedWrite(entry) ||
+                    ActionPermissionRequirements.RequiredBy(job.Steps, entry.Name) is not { } action)
+                {
+                    continue;
+                }
+
+                accepted.Add(new WorkflowAcknowledgement(
+                    RuleId,
+                    $"{entry.Name}: write is required, not excessive",
+                    $"'{action}' in job '{job.Name}' cannot work without it, and the "
+                        + "grant is held to this job. Removing it would break the step, "
+                        + "so it is not reported.",
+                    entry.Line));
+            }
+        }
+
+        return accepted;
+    }
+
     private WorkflowFinding ExcessiveFinding(WorkflowPermissionEntry entry, string scope) =>
         new(RuleId,
             SeverityFor(entry.Name),
