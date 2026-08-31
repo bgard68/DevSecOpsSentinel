@@ -15,6 +15,6 @@
 # the repository setting. Updating only this file makes CI pass and the deploy still fail.
 
 gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e
-azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca
+azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c
 azure/webapps-deploy@02a81bead70021f5284939794bcec79c271ab383
 Azure/static-web-apps-deploy@1a947af9992250f3bc2e68ad0754c0b0c11566c9
