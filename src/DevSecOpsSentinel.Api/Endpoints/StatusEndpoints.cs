@@ -24,7 +24,9 @@ public static class StatusEndpoints
     // pre-Build snapshot captured into the closure.
     public static WebApplication MapStatusEndpoints(this WebApplication app)
     {
-    app.MapGet("/", () => Results.Ok(new
+    // GET *and* HEAD: uptime monitors and platform probes default to HEAD, and a status
+    // endpoint that answers 405 to the probe watching it cannot report bad news.
+    app.MapMethods("/", new[] { "GET", "HEAD" }, () => Results.Ok(new
     {
         status = "Running",
         application = ProductInfo.Name,
