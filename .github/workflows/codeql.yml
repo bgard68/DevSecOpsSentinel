@@ -53,13 +53,13 @@ jobs:
       # time, and removes a class of CI failure where the scan breaks because
       # the build did rather than because the code is wrong.
       - name: Initialise CodeQL
-        uses: github/codeql-action/init@18420e3271f74589575af831a523c833acda327f
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           languages: ${{ matrix.language }}
           build-mode: none
           queries: security-and-quality
 
       - name: Analyse
-        uses: github/codeql-action/analyze@18420e3271f74589575af831a523c833acda327f
+        uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           category: "/language:${{ matrix.language }}"
