@@ -311,11 +311,12 @@ half-built.
 
 ## Something worth reading
 
-[docs/engineering-log.md](docs/engineering-log.md) records twenty-six defects found
+[docs/engineering-log.md](docs/engineering-log.md) records thirty defects found
 *after* this project was first considered finished — including findings that
 never rendered in the interface, an exported patch `git apply` refused, a SARIF
-document no consumer would accept, and a protection gate that passed because it
-had nothing to check.
+document no consumer would accept, a protection gate that passed because it had
+nothing to check, and two assertions that passed whether or not the code they
+named still worked.
 
 Each entry covers how it surfaced and what now prevents it. The defects are more
 instructive than the features.
