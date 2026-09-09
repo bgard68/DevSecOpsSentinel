@@ -111,8 +111,28 @@ public sealed class AcknowledgementTests
         Assert.Empty(rule.Acknowledge(workflow));
     }
 
-    [Fact]
-    public void Analyze_RulesThatNeverSuppressAnything_AcknowledgeNothing()
+    /// <summary>
+    /// Every rule except the two that acknowledge. Built here rather than
+    /// filtered inside the test, so the case list is visible in the runner and
+    /// a new rule joins it without anyone editing a condition.
+    /// </summary>
+    public static TheoryData<string> RulesThatAcknowledgeNothing()
+    {
+        TheoryData<string> data = [];
+        foreach (IWorkflowSecurityRule rule in RuleCatalogue.All())
+        {
+            if (rule is not (ExcessivePermissionsRule or PersistedCredentialsRule))
+            {
+                data.Add(rule.RuleId);
+            }
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(RulesThatAcknowledgeNothing))]
+    public void Analyze_RuleThatNeverSuppressesAnything_AcknowledgesNothing(string ruleId)
     {
         // The interface defaults, so the other rules needed no opinion; this
         // pins that the default is empty rather than a surprise.
@@ -125,15 +145,10 @@ public sealed class AcknowledgementTests
             "    steps:",
             "      - uses: actions/checkout@v4");
 
-        foreach (IWorkflowSecurityRule rule in RuleCatalogue.All())
-        {
-            if (rule is ExcessivePermissionsRule or PersistedCredentialsRule)
-            {
-                continue;
-            }
+        IWorkflowSecurityRule rule = RuleCatalogue.All()
+            .Single(candidate => candidate.RuleId == ruleId);
 
-            Assert.Empty(rule.Acknowledge(workflow));
-        }
+        Assert.Empty(rule.Acknowledge(workflow));
     }
 
     private ParsedWorkflow Parse(params string[] lines)

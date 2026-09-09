@@ -99,15 +99,7 @@ public sealed class GitHubActionReferenceResolverTests
     {
         // Annotated tags point at a tag object, not the commit. Pinning to the tag
         // object's SHA would produce a reference Actions cannot check out.
-        FakeHttp http = new(request =>
-        {
-            string path = request.RequestUri!.AbsolutePath;
-            if (path.Contains("/git/ref/tags/v4"))
-                return Json($$"""{ "object": { "sha": "{{AnnotatedTagSha}}", "type": "tag" } }""");
-            if (path.Contains($"/git/tags/{AnnotatedTagSha}"))
-                return Json($$"""{ "object": { "sha": "{{CommitSha}}", "type": "commit" } }""");
-            return new HttpResponseMessage(HttpStatusCode.NotFound);
-        });
+        FakeHttp http = new(AnnotatedTagRoutes);
 
         ActionReferenceResolutionResult result =
             await Resolver(http).ResolveAsync("actions/checkout@v4", CancellationToken.None);
@@ -119,15 +111,7 @@ public sealed class GitHubActionReferenceResolverTests
     [Fact]
     public async Task ResolveAsync_BranchReference_FallsBackToTheHeadsLookup()
     {
-        FakeHttp http = new(request =>
-        {
-            string path = request.RequestUri!.AbsolutePath;
-            if (path.Contains("/git/ref/tags/main"))
-                return new HttpResponseMessage(HttpStatusCode.NotFound);
-            if (path.Contains("/git/ref/heads/main"))
-                return Json($$"""{ "object": { "sha": "{{CommitSha}}", "type": "commit" } }""");
-            return new HttpResponseMessage(HttpStatusCode.NotFound);
-        });
+        FakeHttp http = new(BranchOnlyRoutes);
 
         ActionReferenceResolutionResult result =
             await Resolver(http).ResolveAsync("actions/checkout@main", CancellationToken.None);
@@ -156,20 +140,46 @@ public sealed class GitHubActionReferenceResolverTests
     {
         // A hostile or broken repository can make tag objects point at tag objects
         // forever. The resolver must give up, not follow.
-        FakeHttp http = new(request =>
-        {
-            string path = request.RequestUri!.AbsolutePath;
-            if (path.Contains("/git/ref/tags/v4"))
-                return Json($$"""{ "object": { "sha": "{{AnnotatedTagSha}}", "type": "tag" } }""");
-            if (path.Contains("/git/tags/"))
-                return Json($$"""{ "object": { "sha": "{{AnnotatedTagSha}}", "type": "tag" } }""");
-            return new HttpResponseMessage(HttpStatusCode.NotFound);
-        });
+        FakeHttp http = new(EndlessTagChainRoutes);
 
         ActionReferenceResolutionResult result =
             await Resolver(http).ResolveAsync("actions/checkout@v4", CancellationToken.None);
 
         Assert.NotEqual(ActionReferenceResolutionStatus.Resolved, result.Status);
         Assert.True(http.Requests <= 7, $"made {http.Requests} requests");
+    }
+
+    // Route tables for the fake transport. They live here rather than inline so
+    // that each test body states what it resolves and what it expects, and the
+    // branching that belongs to the double is not read as test logic.
+
+    private static HttpResponseMessage AnnotatedTagRoutes(HttpRequestMessage request)
+    {
+        string path = request.RequestUri!.AbsolutePath;
+        if (path.Contains("/git/ref/tags/v4"))
+            return Json($$"""{ "object": { "sha": "{{AnnotatedTagSha}}", "type": "tag" } }""");
+        if (path.Contains($"/git/tags/{AnnotatedTagSha}"))
+            return Json($$"""{ "object": { "sha": "{{CommitSha}}", "type": "commit" } }""");
+        return new HttpResponseMessage(HttpStatusCode.NotFound);
+    }
+
+    private static HttpResponseMessage BranchOnlyRoutes(HttpRequestMessage request)
+    {
+        string path = request.RequestUri!.AbsolutePath;
+        if (path.Contains("/git/ref/tags/main"))
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        if (path.Contains("/git/ref/heads/main"))
+            return Json($$"""{ "object": { "sha": "{{CommitSha}}", "type": "commit" } }""");
+        return new HttpResponseMessage(HttpStatusCode.NotFound);
+    }
+
+    private static HttpResponseMessage EndlessTagChainRoutes(HttpRequestMessage request)
+    {
+        string path = request.RequestUri!.AbsolutePath;
+        if (path.Contains("/git/ref/tags/v4"))
+            return Json($$"""{ "object": { "sha": "{{AnnotatedTagSha}}", "type": "tag" } }""");
+        if (path.Contains("/git/tags/"))
+            return Json($$"""{ "object": { "sha": "{{AnnotatedTagSha}}", "type": "tag" } }""");
+        return new HttpResponseMessage(HttpStatusCode.NotFound);
     }
 }

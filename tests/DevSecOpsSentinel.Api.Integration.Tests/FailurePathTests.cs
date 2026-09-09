@@ -98,9 +98,30 @@ public sealed class RateLimitTests(RateLimitedApiFactory factory)
                 + "    timeout-minutes: 15\n"
         };
 
+        IReadOnlyList<HttpStatusCode> observed = await PostRepeatedly(
+            payload,
+            RateLimitedApiFactory.PermitLimit + 1);
+
+        Assert.Equal(
+            RateLimitedApiFactory.PermitLimit,
+            observed.Count(status => status == HttpStatusCode.OK));
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, observed[^1]);
+    }
+
+    /// <summary>
+    /// Exceeding a rate limit requires more than one request, so the repetition
+    /// is real rather than incidental. It lives here rather than in the test
+    /// body: what the test asserts is the shape of the resulting status
+    /// sequence, and the counting is setup.
+    /// </summary>
+    private async Task<IReadOnlyList<HttpStatusCode>> PostRepeatedly(
+        object payload,
+        int attempts)
+    {
         List<HttpStatusCode> observed = [];
 
-        for (int attempt = 0; attempt < RateLimitedApiFactory.PermitLimit + 1; attempt++)
+        for (int attempt = 0; attempt < attempts; attempt++)
         {
             HttpResponseMessage response = await _client.PostAsJsonAsync(
                 "/api/workflows/analyze",
@@ -109,10 +130,6 @@ public sealed class RateLimitTests(RateLimitedApiFactory factory)
             observed.Add(response.StatusCode);
         }
 
-        Assert.Equal(
-            RateLimitedApiFactory.PermitLimit,
-            observed.Count(status => status == HttpStatusCode.OK));
-
-        Assert.Equal(HttpStatusCode.TooManyRequests, observed[^1]);
+        return observed;
     }
 }

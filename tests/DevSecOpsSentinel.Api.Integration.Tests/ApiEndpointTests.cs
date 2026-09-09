@@ -108,7 +108,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
 
         string[] validLevels = ["none", "note", "warning", "error"];
 
-        foreach (JsonElement rule in rules)
+        Assert.All(rules, rule =>
         {
             Assert.Contains(
                 rule.GetProperty("defaultConfiguration").GetProperty("level").GetString(),
@@ -118,12 +118,12 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
             Assert.True(double.TryParse(
                 rule.GetProperty("properties").GetProperty("security-severity").GetString(),
                 out _));
-        }
+        });
 
         JsonElement[] results = run.GetProperty("results").EnumerateArray().ToArray();
         Assert.NotEmpty(results);
 
-        foreach (JsonElement result in results)
+        Assert.All(results, result =>
         {
             Assert.Contains(result.GetProperty("level").GetString(), validLevels);
 
@@ -136,7 +136,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
 
             Assert.False(string.IsNullOrWhiteSpace(
                 result.GetProperty("message").GetProperty("text").GetString()));
-        }
+        });
     }
 
     [Fact]

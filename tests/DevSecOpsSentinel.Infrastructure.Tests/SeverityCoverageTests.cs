@@ -34,17 +34,33 @@ public sealed class SeverityCoverageTests
             "a level nothing emits is a category the client can never populate.");
     }
 
-    [Fact]
-    public void RuleCatalogue_AllRules_DeclareASeverityTheScaleDefines()
+    public static TheoryData<string> RuleIds()
+    {
+        TheoryData<string> data = [];
+        foreach (IWorkflowSecurityRule rule in RuleCatalogue.All())
+        {
+            data.Add(rule.RuleId);
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(RuleIds))]
+    public void RuleCatalogue_EachRule_DeclaresASeverityTheScaleDefines(string ruleId)
     {
         // The other direction: a rule cannot report a value outside the scale,
         // which would sort unpredictably and serialise as a number.
-        foreach (IWorkflowSecurityRule rule in RuleCatalogue.All())
-        {
-            Assert.True(
-                Enum.IsDefined(rule.Severity),
-                $"{rule.RuleId} declares severity {(int)rule.Severity}, which is not on the scale.");
-        }
+        //
+        // One case per rule rather than a loop, so a rule that drifts off the
+        // scale is named by the failing case instead of by a message the loop
+        // had to assemble.
+        IWorkflowSecurityRule rule = RuleCatalogue.All()
+            .Single(candidate => candidate.RuleId == ruleId);
+
+        Assert.True(
+            Enum.IsDefined(rule.Severity),
+            $"{rule.RuleId} declares severity {(int)rule.Severity}, which is not on the scale.");
     }
 
     [Fact]
