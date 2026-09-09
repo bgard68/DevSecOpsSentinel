@@ -82,24 +82,22 @@ public sealed class ContainmentReplayEval
         // Stated once, over the whole corpus, rather than left implicit in the per-reply
         // expectations. This is the sentence the README makes; if it stops being true, the
         // failure should name that claim rather than a file.
-        List<string> escaped = [];
-
-        foreach (ReplayEntry entry in ReplayCorpus.Entries)
-        {
-            WorkflowAnalysisResult analysis = CorpusEval.AnalyzeForReplay(entry.WorkflowFile);
-            OpenAiWorkflowAiProvider.OpenAiExplanationPayload payload = Load(entry.ResponseFile);
-
-            HashSet<string> real = [.. analysis.Findings.Select(finding => finding.RuleId)];
-            bool invents = payload.Findings.Any(finding => !real.Contains(finding.RuleId));
-
-            if (invents && OpenAiWorkflowAiProvider.IsValid(payload, analysis))
+        string[] escaped = [.. ReplayCorpus.Entries
+            .Select(entry => new
             {
-                escaped.Add(entry.ResponseFile);
-            }
-        }
+                entry.ResponseFile,
+                Analysis = CorpusEval.AnalyzeForReplay(entry.WorkflowFile),
+                Payload = Load(entry.ResponseFile)
+            })
+            .Where(scored => scored.Payload.Findings.Any(finding =>
+                !scored.Analysis.Findings
+                    .Select(real => real.RuleId)
+                    .Contains(finding.RuleId, StringComparer.Ordinal)))
+            .Where(scored => OpenAiWorkflowAiProvider.IsValid(scored.Payload, scored.Analysis))
+            .Select(scored => scored.ResponseFile)];
 
         Assert.True(
-            escaped.Count == 0,
+            escaped.Length == 0,
             "Replies naming a rule the scanner never produced, accepted by the gate: "
             + string.Join(", ", escaped));
     }
@@ -144,19 +142,34 @@ public sealed class ContainmentReplayEval
             "|---|---|---|---|---|"
         ];
 
-        foreach (ReplayEntry entry in ReplayCorpus.Entries)
-        {
-            WorkflowAnalysisResult analysis = CorpusEval.AnalyzeForReplay(entry.WorkflowFile);
-            bool accepted = OpenAiWorkflowAiProvider.IsValid(Load(entry.ResponseFile), analysis);
-            string verdict(bool value) => value ? "accepted" : "rejected";
+        static string Verdict(bool value) => value ? "accepted" : "rejected";
 
-            lines.Add(
-                $"| `{entry.ResponseFile}` | `{entry.WorkflowFile}` | {verdict(entry.ShouldBeAccepted)} "
-                + $"| {verdict(accepted)} | {(accepted == entry.ShouldBeAccepted ? "pass" : "**FAIL**")} |");
-        }
+        lines.AddRange(ReplayCorpus.Entries
+            .Select(entry => new
+            {
+                entry.ResponseFile,
+                entry.WorkflowFile,
+                entry.ShouldBeAccepted,
+                Accepted = OpenAiWorkflowAiProvider.IsValid(
+                    Load(entry.ResponseFile),
+                    CorpusEval.AnalyzeForReplay(entry.WorkflowFile))
+            })
+            .Select(row =>
+                $"| `{row.ResponseFile}` | `{row.WorkflowFile}` | {Verdict(row.ShouldBeAccepted)} "
+                + $"| {Verdict(row.Accepted)} | {(row.Accepted == row.ShouldBeAccepted ? "pass" : "**FAIL**")} |"));
 
-        File.WriteAllLines(Path.Join(AppContext.BaseDirectory, "replay-scoreboard.md"), lines);
-        Assert.True(true);
+        string path = Path.Join(AppContext.BaseDirectory, "replay-scoreboard.md");
+        File.WriteAllLines(path, lines);
+
+        // Assert.True(true) was the assertion here, which made this a method
+        // that could not fail — the scoreboard could be empty, truncated or
+        // never written and the test still passed.
+        string[] written = File.ReadAllLines(path);
+
+        Assert.Equal(
+            ReplayCorpus.Entries.Count,
+            written.Count(line => line.StartsWith("| `", StringComparison.Ordinal)));
+        Assert.DoesNotContain("**FAIL**", written);
     }
 
     private static string ResponsesDirectory => Path.Join(AppContext.BaseDirectory, "Responses");

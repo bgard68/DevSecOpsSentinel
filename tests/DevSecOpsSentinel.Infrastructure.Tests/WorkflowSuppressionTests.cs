@@ -49,7 +49,7 @@ public sealed class WorkflowSuppressionTests
         Assert.Equal(7, entry.DirectiveLine); // the comment, for reporting
         Assert.Equal("deleting a run has no narrower grant", entry.Reason);
 
-        Assert.NotNull(suppressions.For(Finding("GHA002", 8)));
+        Assert.Same(entry, suppressions.For(Finding("GHA002", 8)));
     }
 
     [Fact]
@@ -115,7 +115,11 @@ public sealed class WorkflowSuppressionTests
             "    steps:",
             "      - run: echo hi");
 
-        Assert.NotNull(suppressions.For(Finding("GHA002", 8)));
+        WorkflowSuppressions.Suppression? covered =
+            suppressions.For(Finding("GHA002", 8));
+
+        Assert.Equal("GHA002", covered?.RuleId);
+        Assert.Equal(8, covered?.Line);
 
         // The second grant was never considered, so it is not covered.
         Assert.Null(suppressions.For(Finding("GHA002", 14)));
@@ -136,7 +140,12 @@ public sealed class WorkflowSuppressionTests
             "    steps:",
             "      - run: echo hi");
 
-        Assert.NotNull(suppressions.For(Finding("GHA002", 8)));
+        WorkflowSuppressions.Suppression? covered =
+            suppressions.For(Finding("GHA002", 8));
+
+        Assert.Equal("GHA002", covered?.RuleId);
+        Assert.Equal("considered", covered?.Reason);
+
         Assert.Null(suppressions.For(Finding("GHA006", 8)));
     }
 

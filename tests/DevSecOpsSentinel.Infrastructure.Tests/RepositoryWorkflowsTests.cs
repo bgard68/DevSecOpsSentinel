@@ -118,34 +118,25 @@ public sealed class RepositoryWorkflowsTests
                 ? entries
                 : [];
 
-        List<string> unexpected = [];
-        foreach (IGrouping<string, WorkflowFinding> group in
-            findings.GroupBy(finding => finding.RuleId))
-        {
-            int allowance = accepted
+        string[] unexpected = [.. findings
+            .GroupBy(finding => finding.RuleId)
+            .SelectMany(group => group.Skip(accepted
                 .Where(entry => entry.RuleId == group.Key)
-                .Sum(entry => entry.Count);
-
-            foreach (WorkflowFinding finding in group.Skip(allowance))
-            {
-                unexpected.Add(
-                    $"{finding.RuleId} [{finding.Severity}] line {finding.LineNumber}: {finding.Title}");
-            }
-        }
+                .Sum(entry => entry.Count)))
+            .Select(finding =>
+                $"{finding.RuleId} [{finding.Severity}] line {finding.LineNumber}: {finding.Title}")];
 
         Assert.True(
-            unexpected.Count == 0,
+            unexpected.Length == 0,
             $"{fileName} would be reported by this project's own rules:\n  "
                 + string.Join("\n  ", unexpected));
 
         // An exception that no longer corresponds to a real finding is worse
         // than no exception: it reads as considered when nothing considered it.
-        foreach ((string ruleId, int count, string why) in accepted)
-        {
+        Assert.All(accepted, entry =>
             Assert.True(
-                findings.Count(finding => finding.RuleId == ruleId) == count,
-                $"{fileName} no longer produces {count} {ruleId} finding(s). "
-                    + $"Remove the accepted entry: {why}");
-        }
+                findings.Count(finding => finding.RuleId == entry.RuleId) == entry.Count,
+                $"{fileName} no longer produces {entry.Count} {entry.RuleId} finding(s). "
+                    + $"Remove the accepted entry: {entry.Why}"));
     }
 }

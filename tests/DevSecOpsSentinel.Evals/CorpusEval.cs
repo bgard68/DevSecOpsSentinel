@@ -124,25 +124,32 @@ public sealed class CorpusEval
             "|---|---|---|---|"
         ];
 
-        foreach (CorpusEntry entry in GoldenCorpus.Entries)
-        {
-            string[] actual = Scan(entry.FileName);
-            bool match = actual.OrderBy(id => id, StringComparer.Ordinal)
-                .SequenceEqual(entry.ExpectedRuleIds.OrderBy(id => id, StringComparer.Ordinal), StringComparer.Ordinal);
-
-            lines.Add($"| `{entry.FileName}` | {Join(entry.ExpectedRuleIds)} | {Join(actual)} | {(match ? "pass" : "**FAIL**")} |");
-        }
+        lines.AddRange(GoldenCorpus.Entries
+            .Select(entry => new { entry.FileName, entry.ExpectedRuleIds, Actual = Scan(entry.FileName) })
+            .Select(row => $"| `{row.FileName}` | {Join(row.ExpectedRuleIds)} | {Join(row.Actual)} | "
+                + $"{(row.Actual.OrderBy(id => id, StringComparer.Ordinal).SequenceEqual(row.ExpectedRuleIds.OrderBy(id => id, StringComparer.Ordinal), StringComparer.Ordinal) ? "pass" : "**FAIL**")} |"));
 
         lines.AddRange(["", "| Rule | Fixtures |", "|---|---|"]);
-        foreach (IWorkflowSecurityRule rule in AllRules)
-        {
-            int count = GoldenCorpus.Entries.Count(entry => entry.ExpectedRuleIds.Contains(rule.RuleId, StringComparer.Ordinal));
-            lines.Add($"| {rule.RuleId} {rule.Title} | {(count == 0 ? "**none**" : count.ToString())} |");
-        }
+        lines.AddRange(AllRules
+            .Select(rule => new
+            {
+                rule.RuleId,
+                rule.Title,
+                Count = GoldenCorpus.Entries.Count(entry => entry.ExpectedRuleIds.Contains(rule.RuleId, StringComparer.Ordinal))
+            })
+            .Select(row => $"| {row.RuleId} {row.Title} | {(row.Count == 0 ? "**none**" : row.Count.ToString())} |"));
 
         string path = Path.Join(AppContext.BaseDirectory, "scoreboard.md");
         File.WriteAllLines(path, lines);
-        Assert.True(File.Exists(path));
+
+        // Existence alone was the assertion, which a zero-byte file satisfies.
+        string[] written = File.ReadAllLines(path);
+
+        Assert.Equal(
+            GoldenCorpus.Entries.Count,
+            written.Count(line => line.StartsWith("| `", StringComparison.Ordinal)));
+        Assert.DoesNotContain("**FAIL**", written);
+        Assert.DoesNotContain("**none**", written);
     }
 
     internal static string CorpusDirectory => Path.Join(AppContext.BaseDirectory, "Corpus");
