@@ -7,7 +7,7 @@ public sealed class AiSecurityTests
     private readonly SensitiveDataSanitizer _sanitizer = new();
 
     [Fact]
-    public void Sanitizer_redacts_common_secret_patterns()
+    public void Sanitize_CommonSecretPatterns_RedactsThem()
     {
         const string source =
             "token: abc123\n" +
@@ -23,7 +23,7 @@ public sealed class AiSecurityTests
     }
 
     [Fact]
-    public void Sanitizer_redacts_inline_flow_mapping_values()
+    public void Sanitize_InlineFlowMappingValues_RedactsThem()
     {
         const string source =
             "env: { TOKEN: inline-secret, MODE: safe }";
@@ -42,7 +42,7 @@ public sealed class AiSecurityTests
     }
 
     [Fact]
-    public void Sanitizer_redacts_command_line_secret_arguments()
+    public void Sanitize_CommandLineSecretArguments_RedactsThem()
     {
         const string source =
             "run: deploy --token=command-secret --environment test";
@@ -61,7 +61,7 @@ public sealed class AiSecurityTests
     }
 
     [Fact]
-    public void Sanitizer_redacts_shell_assignments_and_known_tokens()
+    public void Sanitize_ShellAssignmentsAndKnownTokens_RedactsThem()
     {
         string source =
             "TOKEN=shell-secret\n" +
@@ -81,7 +81,7 @@ public sealed class AiSecurityTests
     }
 
     [Fact]
-    public void Sanitizer_redacts_private_key_blocks()
+    public void Sanitize_PrivateKeyBlock_RedactsIt()
     {
         string begin =
             "-----BEGIN " + "RSA PRIVATE KEY-----";
@@ -100,7 +100,7 @@ public sealed class AiSecurityTests
     }
 
     [Fact]
-    public void Sanitizer_does_not_redact_unrelated_configuration()
+    public void Sanitize_UnrelatedConfiguration_LeavesItUnchanged()
     {
         const string source =
             "permissions: read-all\n" +

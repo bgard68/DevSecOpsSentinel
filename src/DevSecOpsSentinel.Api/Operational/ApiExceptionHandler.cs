@@ -53,10 +53,14 @@ public sealed class ApiExceptionHandler(
 
         if (!written && !httpContext.Response.HasStarted)
         {
-            httpContext.Response.ContentType = "application/problem+json";
-
+            // The content type has to be passed to WriteAsJsonAsync rather than
+            // assigned beforehand: the overload without it resets the header to
+            // application/json, so this fallback served a problem document under
+            // a media type RFC 7807 clients do not recognise.
             await httpContext.Response.WriteAsJsonAsync(
                 problem,
+                options: null,
+                contentType: "application/problem+json",
                 cancellationToken);
         }
 

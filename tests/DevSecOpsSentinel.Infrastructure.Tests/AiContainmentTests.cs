@@ -21,7 +21,7 @@ public sealed class AiContainmentTests
     private const string Invented = "GHA999";
 
     [Fact]
-    public void Reply_naming_exactly_the_scanner_findings_is_accepted()
+    public void Containment_ReplyNamingExactlyTheScannerFindings_IsAccepted()
     {
         var analysis = AnalysisWith(Unpinned, Excessive);
         var payload = PayloadWith(Unpinned, Excessive);
@@ -30,7 +30,7 @@ public sealed class AiContainmentTests
     }
 
     [Fact]
-    public void Reply_inventing_a_rule_the_scanner_did_not_find_is_rejected()
+    public void Containment_ReplyInventingARule_IsRejected()
     {
         // The headline case: the model asserts a vulnerability of its own. Even though the
         // real findings are all present and correctly described, the extra id fails the gate.
@@ -41,7 +41,7 @@ public sealed class AiContainmentTests
     }
 
     [Fact]
-    public void Reply_consisting_only_of_invented_rules_is_rejected()
+    public void Containment_ReplyOfOnlyInventedRules_IsRejected()
     {
         var analysis = AnalysisWith(Unpinned);
         var payload = PayloadWith(Invented);
@@ -50,7 +50,7 @@ public sealed class AiContainmentTests
     }
 
     [Fact]
-    public void Reply_silently_dropping_a_finding_is_rejected()
+    public void Containment_ReplyDroppingAFinding_IsRejected()
     {
         // Containment runs both ways. A reply that quietly omits a real finding would let the
         // model decide something is not worth mentioning, which is the same authority in reverse.
@@ -61,7 +61,7 @@ public sealed class AiContainmentTests
     }
 
     [Fact]
-    public void Reply_swapping_one_real_rule_for_another_is_rejected()
+    public void Containment_ReplySwappingOneRealRuleForAnother_IsRejected()
     {
         // Same count as the scanner produced, so a length check alone would pass this.
         var analysis = AnalysisWith(Unpinned, Excessive);
@@ -74,7 +74,7 @@ public sealed class AiContainmentTests
     [InlineData("gha001")]
     [InlineData("GHA001 ")]
     [InlineData(" GHA001")]
-    public void Rule_ids_are_matched_exactly_and_not_loosely(string nearMiss)
+    public void Containment_RuleIdPrefixMatch_IsRejectedAsNotExact(string nearMiss)
     {
         // Comparison is ordinal on purpose. A near miss is a reply the gate cannot vouch for,
         // so it degrades to the deterministic fallback rather than being quietly normalised.
@@ -85,7 +85,7 @@ public sealed class AiContainmentTests
     }
 
     [Fact]
-    public void Clean_workflow_accepts_a_reply_that_claims_nothing()
+    public void Containment_CleanWorkflowWithAnEmptyReply_IsAccepted()
     {
         var analysis = AnalysisWith();
         var payload = PayloadWith();
@@ -94,7 +94,7 @@ public sealed class AiContainmentTests
     }
 
     [Fact]
-    public void Clean_workflow_rejects_a_reply_that_manufactures_a_finding()
+    public void Containment_CleanWorkflowWithAManufacturedFinding_IsRejected()
     {
         // safe.yml in the sandbox exists for this case: nothing found, so nothing to explain.
         var analysis = AnalysisWith();
@@ -108,7 +108,7 @@ public sealed class AiContainmentTests
     [InlineData("   ", "next step")]
     [InlineData("summary", "")]
     [InlineData("summary", "   ")]
-    public void Reply_missing_its_prose_is_rejected_even_when_the_rule_ids_line_up(
+    public void Containment_ReplyMissingItsProse_IsRejectedDespiteMatchingRuleIds(
         string summary,
         string nextStep)
     {

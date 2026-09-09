@@ -56,7 +56,7 @@ public sealed class GitHubActionReferenceResolverTests
     [InlineData("./local/action")]
     [InlineData("docker://alpine:3")]
     [InlineData("not-a-reference")]
-    public async Task Local_docker_and_malformed_references_are_unsupported_without_any_request(string reference)
+    public async Task ResolveAsync_LocalDockerAndMalformedReferences_AreUnsupportedWithoutAnyRequest(string reference)
     {
         FakeHttp http = new(_ => throw new InvalidOperationException("must not be called"));
 
@@ -68,7 +68,7 @@ public sealed class GitHubActionReferenceResolverTests
     }
 
     [Fact]
-    public async Task An_already_pinned_reference_resolves_to_itself_without_any_request()
+    public async Task ResolveAsync_AlreadyPinnedReference_ResolvesToItselfWithoutAnyRequest()
     {
         FakeHttp http = new(_ => throw new InvalidOperationException("must not be called"));
 
@@ -81,7 +81,7 @@ public sealed class GitHubActionReferenceResolverTests
     }
 
     [Fact]
-    public async Task A_lightweight_tag_resolves_straight_to_its_commit()
+    public async Task ResolveAsync_LightweightTag_ResolvesStraightToItsCommit()
     {
         FakeHttp http = new(request => request.RequestUri!.AbsolutePath.Contains("/git/ref/tags/v4")
             ? Json($$"""{ "object": { "sha": "{{CommitSha}}", "type": "commit" } }""")
@@ -95,7 +95,7 @@ public sealed class GitHubActionReferenceResolverTests
     }
 
     [Fact]
-    public async Task An_annotated_tag_is_dereferenced_to_the_commit_it_wraps()
+    public async Task ResolveAsync_AnnotatedTag_IsDereferencedToTheCommitItWraps()
     {
         // Annotated tags point at a tag object, not the commit. Pinning to the tag
         // object's SHA would produce a reference Actions cannot check out.
@@ -117,7 +117,7 @@ public sealed class GitHubActionReferenceResolverTests
     }
 
     [Fact]
-    public async Task A_branch_reference_falls_back_to_the_heads_lookup()
+    public async Task ResolveAsync_BranchReference_FallsBackToTheHeadsLookup()
     {
         FakeHttp http = new(request =>
         {
@@ -137,7 +137,7 @@ public sealed class GitHubActionReferenceResolverTests
     }
 
     [Fact]
-    public async Task A_reference_that_is_neither_tag_nor_branch_reports_not_found()
+    public async Task ResolveAsync_ReferenceThatIsNeitherTagNorBranch_ReportsNotFound()
     {
         // Not Failed: the lookup worked and the answer is "no such reference". The patch
         // generator treats the two differently — NotFound is a wrong tag in the workflow,
@@ -152,7 +152,7 @@ public sealed class GitHubActionReferenceResolverTests
     }
 
     [Fact]
-    public async Task A_tag_loop_stops_at_the_dereference_ceiling_instead_of_spinning()
+    public async Task ResolveAsync_TagLoop_StopsAtTheDereferenceCeiling()
     {
         // A hostile or broken repository can make tag objects point at tag objects
         // forever. The resolver must give up, not follow.

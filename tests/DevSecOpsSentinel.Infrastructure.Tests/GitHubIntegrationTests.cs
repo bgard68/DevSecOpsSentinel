@@ -10,7 +10,7 @@ namespace DevSecOpsSentinel.Infrastructure.Tests;
 public sealed class GitHubIntegrationTests
 {
     [Fact]
-    public void Jwt_factory_creates_rs256_token_with_expected_issuer()
+    public void CreateJwt_ConfiguredAppId_ProducesAnRs256TokenWithThatIssuer()
     {
         string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -52,7 +52,7 @@ public sealed class GitHubIntegrationTests
     [InlineData("bgard68", "DevSecOpsSentinel-Sandbox", true)]
     [InlineData("BGARD68", "devsecopssentinel-sandbox", true)]
     [InlineData("bgard68", "ToDoApp", false)]
-    public void Allowlist_is_case_insensitive_and_restrictive(
+    public void IsRepositoryAllowed_MixedCaseAndUnlistedNames_MatchesCaseInsensitivelyAndRestrictively(
         string owner,
         string repository,
         bool expected)
@@ -67,7 +67,7 @@ public sealed class GitHubIntegrationTests
 
 
     [Fact]
-    public async Task Action_resolver_returns_commit_sha_for_lightweight_tag()
+    public async Task ResolveAsync_LightweightTagViaResolver_ReturnsTheCommitSha()
     {
         const string sha =
             "2222222222222222222222222222222222222222";
@@ -98,7 +98,7 @@ public sealed class GitHubIntegrationTests
     }
 
     [Fact]
-    public async Task Action_resolver_returns_null_when_reference_cannot_be_resolved()
+    public async Task ResolveAsync_UnresolvableReference_ReturnsNoCommitSha()
     {
         HttpClient client = new(new StubHttpMessageHandler(
             HttpStatusCode.NotFound,
@@ -122,7 +122,7 @@ public sealed class GitHubIntegrationTests
 
 
     [Fact]
-    public void IsConfigured_does_not_require_private_key_file_to_exist()
+    public void IsConfigured_PrivateKeyFileMissing_StillReportsConfigured()
     {
         GitHubOptions options = new()
         {

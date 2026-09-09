@@ -9,35 +9,35 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-    public async Task Root_and_health_return_success()
+    public async Task Get_RootAndHealthEndpoints_ReturnOk()
     {
         Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/api/health")).StatusCode);
     }
 
     [Fact]
-    public async Task OpenApi_and_scalar_return_success_in_development()
+    public async Task Get_OpenApiAndScalar_ReturnOkInDevelopment()
     {
         Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/openapi/v1.json")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/scalar")).StatusCode);
     }
 
     [Fact]
-    public async Task Rules_and_scenarios_return_success()
+    public async Task Get_RulesAndScenarios_ReturnOk()
     {
         Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/api/rules")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/api/scenarios")).StatusCode);
     }
 
     [Fact]
-    public async Task Missing_scenario_returns_not_found()
+    public async Task GetScenario_UnknownName_ReturnsNotFound()
     {
         HttpResponseMessage response = await _client.GetAsync("/api/scenarios/not-real");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-    public async Task Finding_severity_is_serialized_as_a_name_not_an_integer()
+    public async Task Analyze_FindingWithSeverity_SerializesSeverityAsNameNotInteger()
     {
         // The client filters and sorts findings by comparing this field to
         // severity names. An integer here renders an empty findings list and a
@@ -67,7 +67,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
         + "      - uses: actions/checkout@v4\n";
 
     [Fact]
-    public async Task Sarif_export_conforms_to_the_2_1_0_schema()
+    public async Task ExportSarif_VulnerableWorkflow_ConformsToThe210Schema()
     {
         // "level" is a closed enum in SARIF. Emitting severity names there
         // produced a document no SARIF consumer accepts, and an assertion that
@@ -140,7 +140,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Markdown_export_carries_severity_line_and_recommendation()
+    public async Task ExportMarkdown_VulnerableWorkflow_CarriesSeverityLineAndRecommendation()
     {
         // Without these the export names a rule and a resolved flag, which is
         // not enough to triage or locate anything it reports.
@@ -157,21 +157,33 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Html_export_carries_severity_and_escapes_content()
+    public async Task ExportHtml_FileNameContainsMarkup_CarriesSeverityAndEscapesContent()
     {
+        // The file name reaches the document heading, so it carries the markup
+        // here. Asserting against a workflow that contains no markup at all
+        // passes whether or not the encoder is ever called: that version of this
+        // test survived deleting the Encode call from the title cell.
         HttpResponseMessage response = await _client.PostAsJsonAsync(
             "/api/workflows/remediation/export/html",
-            new { fileName = "build.yml", content = VulnerableWorkflow });
+            new
+            {
+                fileName = "<script>alert(1)</script>.yml",
+                content = VulnerableWorkflow
+            });
 
         string body = await response.Content.ReadAsStringAsync();
 
         Assert.Contains("<th>Severity</th>", body, StringComparison.Ordinal);
         Assert.Contains("GHA002", body, StringComparison.Ordinal);
+        Assert.Contains(
+            "<h2>&lt;script&gt;alert(1)&lt;/script&gt;.yml</h2>",
+            body,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("<script>", body, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task Untrusted_checkout_scenario_demonstrates_the_critical_rule()
+    public async Task GetScenario_UntrustedCheckout_DemonstratesTheCriticalRule()
     {
         ScenarioResponse? scenario = await _client
             .GetFromJsonAsync<ScenarioResponse>("/api/scenarios/untrusted-checkout");
@@ -193,7 +205,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Hardened_scenario_is_the_zero_findings_baseline()
+    public async Task GetScenario_Hardened_ProducesZeroFindings()
     {
         // The product claim that the AI agrees with the deterministic engine
         // instead of inventing vulnerabilities rests on this scenario returning
@@ -216,7 +228,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Script_injection_scenario_isolates_the_new_rule()
+    public async Task GetScenario_ScriptInjection_IsolatesTheScriptInjectionRule()
     {
         // The bundled scenario is pinned, permission-scoped and timed out, so
         // GHA005 should be the only finding it produces. A malformed fixture
@@ -250,7 +262,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     private sealed record FindingResponse(string RuleId, string Severity);
 
     [Fact]
-    public async Task Vulnerable_workflow_returns_findings()
+    public async Task Analyze_VulnerableWorkflow_ReturnsFindings()
     {
         var request = new
         {
@@ -267,7 +279,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Empty_request_returns_bad_request()
+    public async Task Analyze_EmptyRequest_ReturnsBadRequest()
     {
         HttpResponseMessage response = await _client.PostAsJsonAsync(
             "/api/workflows/analyze",
@@ -277,7 +289,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
 
 
     [Fact]
-    public async Task Malformed_json_returns_bad_request_problem_details()
+    public async Task Analyze_MalformedJson_ReturnsBadRequestProblemDetails()
     {
         using var content = new StringContent(
             "{\"fileName\":",
@@ -297,7 +309,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Malformed_workflow_returns_unprocessable_entity()
+    public async Task Analyze_MalformedWorkflow_ReturnsUnprocessableEntity()
     {
         HttpResponseMessage response = await _client.PostAsJsonAsync(
             "/api/workflows/analyze",
@@ -305,7 +317,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
     }
     [Fact]
-    public async Task Ai_status_uses_mock_mode_and_does_not_expose_api_key()
+    public async Task GetAiStatus_MockMode_ReportsMockAndWithholdsTheApiKey()
     {
         HttpResponseMessage response = await _client.GetAsync("/api/ai/status");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -324,7 +336,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Explanation_endpoint_returns_mock_explanation()
+    public async Task Explain_MockMode_ReturnsTheMockExplanation()
     {
         var request = new
         {
@@ -341,7 +353,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task GitHub_status_is_safe_when_integration_is_disabled()
+    public async Task GetGitHubStatus_IntegrationDisabled_ReportsDisconnectedWithoutSecrets()
     {
         HttpResponseMessage response = await _client.GetAsync("/api/github/status");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -352,7 +364,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Non_allowlisted_GitHub_repository_is_forbidden()
+    public async Task GetGitHubRepository_NotOnAllowlist_ReturnsForbidden()
     {
         HttpResponseMessage response = await _client.GetAsync(
             "/api/github/repositories/bgard68/ToDoApp/workflows");
@@ -360,7 +372,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Remediation_endpoint_returns_risk_reduction_and_diff()
+    public async Task Remediation_VulnerableWorkflow_ReturnsRiskReductionAndDiff()
     {
         var request = new
         {
@@ -387,7 +399,7 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Sarif_export_is_available()
+    public async Task ExportSarif_VulnerableWorkflow_ReturnsSarifContentType()
     {
         var request = new
         {
@@ -412,25 +424,30 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     }
 
     [Fact]
-    public async Task Operational_health_endpoints_return_success()
+    public async Task Get_LiveAndReadyProbes_ReturnOk()
     {
         Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/api/health/live")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/api/health/ready")).StatusCode);
     }
 
     [Fact]
-    public async Task Responses_include_correlation_and_security_headers()
+    public async Task Get_Health_ReturnsCorrelationIdAndHardeningHeaderValues()
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/health");
         request.Headers.Add("X-Correlation-ID", "phase-f-test");
         HttpResponseMessage response = await _client.SendAsync(request);
 
+        // Values, not presence. Checking only that the header exists let
+        // X-Frame-Options be relaxed from DENY to SAMEORIGIN without failing.
+        // SecurityHeaderTests covers the full set and the per-route CSP.
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(response.Headers.TryGetValues("X-Correlation-ID", out var correlationValues));
         Assert.Contains("phase-f-test", correlationValues!);
-        Assert.True(response.Headers.Contains("X-Content-Type-Options"));
-        Assert.True(response.Headers.Contains("X-Frame-Options"));
-        Assert.True(response.Headers.Contains("Content-Security-Policy"));
+        Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
+        Assert.Equal("DENY", Assert.Single(response.Headers.GetValues("X-Frame-Options")));
+        Assert.Equal(
+            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+            Assert.Single(response.Headers.GetValues("Content-Security-Policy")));
     }
 
     private sealed record AiStatusResponse(

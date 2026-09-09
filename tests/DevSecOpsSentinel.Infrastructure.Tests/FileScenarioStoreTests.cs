@@ -16,7 +16,7 @@ public sealed class FileScenarioStoreTests : IDisposable
     [Theory]
     [InlineData("../escaped.yml")]
     [InlineData("nested/../../escaped.yml")]
-    public void A_file_name_that_escapes_the_scenario_directory_is_refused(
+    public void GetAsync_FileNameEscapingTheScenarioDirectory_IsRefused(
         string fileName)
     {
         // Path.Combine silently discards the directory when the second argument
@@ -38,7 +38,7 @@ public sealed class FileScenarioStoreTests : IDisposable
     }
 
     [Fact]
-    public void An_ordinary_file_name_still_resolves()
+    public void GetAsync_OrdinaryFileName_Resolves()
     {
         Write("scenarios.json",
             "[{\"id\":\"safe\",\"name\":\"Safe\",\"description\":\"d\",\"fileName\":\"safe.yml\"}]");

@@ -24,7 +24,7 @@ public sealed class GitHubEndpointTests : IClassFixture<GitHubEndpointTests.Conf
     public GitHubEndpointTests(ConfiguredFactory factory) => _client = factory.CreateClient();
 
     [Fact]
-    public async Task Status_reports_connected_when_the_reader_answers()
+    public async Task GetStatus_ReaderAnswers_ReportsConnected()
     {
         JsonElement status = await Get("/api/github/status");
 
@@ -33,7 +33,7 @@ public sealed class GitHubEndpointTests : IClassFixture<GitHubEndpointTests.Conf
     }
 
     [Fact]
-    public async Task Repositories_come_back_allowlisted_only_because_the_reader_already_filtered()
+    public async Task GetRepositories_ReaderAlreadyFiltered_ReturnsOnlyAllowlistedEntries()
     {
         HttpResponseMessage response = await _client.GetAsync("/api/github/repositories");
 
@@ -44,7 +44,7 @@ public sealed class GitHubEndpointTests : IClassFixture<GitHubEndpointTests.Conf
     }
 
     [Fact]
-    public async Task A_repository_outside_the_allowlist_is_refused_with_403()
+    public async Task GetRepository_OutsideTheAllowlist_ReturnsForbidden()
     {
         HttpResponseMessage response =
             await _client.GetAsync("/api/github/repositories/octo/Other/workflows");
@@ -53,7 +53,7 @@ public sealed class GitHubEndpointTests : IClassFixture<GitHubEndpointTests.Conf
     }
 
     [Fact]
-    public async Task Workflows_list_for_an_allowlisted_repository()
+    public async Task GetWorkflows_AllowlistedRepository_ReturnsTheWorkflowList()
     {
         JsonElement items = await Get("/api/github/repositories/octo/Sandbox/workflows");
 
@@ -62,7 +62,7 @@ public sealed class GitHubEndpointTests : IClassFixture<GitHubEndpointTests.Conf
     }
 
     [Fact]
-    public async Task Workflow_content_returns_the_file_and_a_missing_path_is_404()
+    public async Task GetWorkflowContent_KnownAndMissingPaths_ReturnsFileThenNotFound()
     {
         JsonElement file = await Get(
             "/api/github/repositories/octo/Sandbox/workflows/content?path=.github/workflows/ci.yml");
@@ -74,7 +74,7 @@ public sealed class GitHubEndpointTests : IClassFixture<GitHubEndpointTests.Conf
     }
 
     [Fact]
-    public async Task Analyze_runs_the_deterministic_rules_over_the_retrieved_workflow()
+    public async Task AnalyzeRepositoryWorkflow_RetrievedFile_RunsTheDeterministicRules()
     {
         HttpResponseMessage response = await _client.PostAsJsonAsync(
             "/api/github/repositories/octo/Sandbox/analyze",
@@ -86,7 +86,7 @@ public sealed class GitHubEndpointTests : IClassFixture<GitHubEndpointTests.Conf
     }
 
     [Fact]
-    public async Task Analyze_refuses_a_repository_outside_the_allowlist()
+    public async Task AnalyzeRepositoryWorkflow_OutsideTheAllowlist_ReturnsForbidden()
     {
         HttpResponseMessage response = await _client.PostAsJsonAsync(
             "/api/github/repositories/octo/Other/analyze",
@@ -96,7 +96,7 @@ public sealed class GitHubEndpointTests : IClassFixture<GitHubEndpointTests.Conf
     }
 
     [Fact]
-    public async Task Analyze_of_a_missing_workflow_is_404()
+    public async Task AnalyzeRepositoryWorkflow_MissingWorkflow_ReturnsNotFound()
     {
         HttpResponseMessage response = await _client.PostAsJsonAsync(
             "/api/github/repositories/octo/Sandbox/analyze",
@@ -106,7 +106,7 @@ public sealed class GitHubEndpointTests : IClassFixture<GitHubEndpointTests.Conf
     }
 
     [Fact]
-    public async Task Analyze_with_ai_returns_the_mock_explanation()
+    public async Task AnalyzeRepositoryWorkflow_WithAiRequested_ReturnsTheMockExplanation()
     {
         HttpResponseMessage response = await _client.PostAsJsonAsync(
             "/api/github/repositories/octo/Sandbox/analyze",
@@ -118,7 +118,7 @@ public sealed class GitHubEndpointTests : IClassFixture<GitHubEndpointTests.Conf
     }
 
     [Fact]
-    public async Task Status_degrades_to_not_connected_when_the_reader_throws()
+    public async Task GetStatus_ReaderThrows_DegradesToNotConnected()
     {
         using BrokenFactory broken = new();
         using HttpClient client = broken.CreateClient();

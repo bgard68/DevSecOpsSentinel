@@ -68,7 +68,7 @@ public sealed class RepositoryWorkflowsTests
     }
 
     [Fact]
-    public void There_are_workflows_to_check()
+    public void RepositoryWorkflows_OnDisk_ArePresentToCheck()
     {
         // Without this, a wrong directory would make every case below pass by
         // having nothing to examine - the failure mode the repository-validation
@@ -78,7 +78,7 @@ public sealed class RepositoryWorkflowsTests
 
     [Theory]
     [MemberData(nameof(WorkflowFiles))]
-    public void Our_own_workflows_pass_our_own_rules(string fileName)
+    public void Scanner_RepositoryOwnWorkflows_ProducesNoFindings(string fileName)
     {
         string path = Path.Join(WorkflowDirectory(), fileName);
         WorkflowParseResult result = _parser.Parse(

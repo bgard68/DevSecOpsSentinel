@@ -6,7 +6,7 @@ namespace DevSecOpsSentinel.Application.Tests;
 public sealed class RemediationReportServiceTests
 {
     [Fact]
-    public async Task Unified_diff_contains_valid_hunk_header()
+    public async Task BuildAsync_PatchableWorkflow_ProducesAValidHunkHeader()
     {
         WorkflowDocument document = new(
             "build.yml",
@@ -48,7 +48,7 @@ public sealed class RemediationReportServiceTests
     }
 
     [Fact]
-    public async Task Exported_patch_applies_cleanly_with_git_apply()
+    public async Task BuildAsync_PatchableWorkflow_ProducesADiffGitApplyAccepts()
     {
         // The patch is served as text/x-diff with a .patch extension, so the
         // contract is that git accepts it. Asserting on hunk-header text alone
@@ -105,7 +105,7 @@ public sealed class RemediationReportServiceTests
     }
 
     [Fact]
-    public async Task Exported_patch_applies_when_the_workflow_has_no_final_newline()
+    public async Task BuildAsync_WorkflowWithoutAFinalNewline_ProducesADiffGitApplyAccepts()
     {
         const string originalContent =
             "name: Build\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest";
@@ -161,7 +161,7 @@ public sealed class RemediationReportServiceTests
     }
 
     [Fact]
-    public async Task Unified_diff_names_the_workflow_being_analyzed()
+    public async Task BuildAsync_NamedWorkflow_NamesThatFileInTheDiffHeader()
     {
         RemediationReport report = await BuildReportAsync(
             "release.yml",

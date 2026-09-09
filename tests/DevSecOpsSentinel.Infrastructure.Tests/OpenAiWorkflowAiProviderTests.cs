@@ -51,7 +51,7 @@ public sealed class OpenAiWorkflowAiProviderTests
         });
 
     [Fact]
-    public async Task A_valid_reply_becomes_a_live_explanation()
+    public async Task ExplainAsync_ValidReply_BecomesALiveExplanation()
     {
         var provider = Provider((_, _, _) => Task.FromResult(ValidReply("GHA001")));
 
@@ -65,7 +65,7 @@ public sealed class OpenAiWorkflowAiProviderTests
     }
 
     [Fact]
-    public async Task The_prompt_carries_the_findings_and_the_sanitized_content()
+    public async Task ExplainAsync_AnyRequest_SendsThePromptWithFindingsAndSanitizedContent()
     {
         string? prompt = null;
         var provider = Provider((messages, _, _) =>
@@ -82,7 +82,7 @@ public sealed class OpenAiWorkflowAiProviderTests
     }
 
     [Fact]
-    public async Task Context_beyond_the_configured_maximum_is_truncated_before_it_is_sent()
+    public async Task ExplainAsync_ContextBeyondTheConfiguredMaximum_IsTruncatedBeforeItIsSent()
     {
         string? prompt = null;
         var provider = Provider((messages, _, _) =>
@@ -100,7 +100,7 @@ public sealed class OpenAiWorkflowAiProviderTests
     }
 
     [Fact]
-    public async Task A_reply_that_fails_the_gate_degrades_to_the_deterministic_fallback()
+    public async Task ExplainAsync_ReplyThatFailsTheGate_DegradesToTheDeterministicFallback()
     {
         var provider = Provider((_, _, _) => Task.FromResult(ValidReply("GHA999")));
 
@@ -114,7 +114,7 @@ public sealed class OpenAiWorkflowAiProviderTests
     }
 
     [Fact]
-    public async Task A_reply_that_is_not_json_degrades_rather_than_throws()
+    public async Task ExplainAsync_ReplyThatIsNotJson_DegradesRatherThanThrows()
     {
         var provider = Provider((_, _, _) => Task.FromResult("I am not JSON."));
 
@@ -126,7 +126,7 @@ public sealed class OpenAiWorkflowAiProviderTests
     }
 
     [Fact]
-    public async Task A_transport_failure_degrades_to_the_unavailable_fallback()
+    public async Task ExplainAsync_TransportFailure_DegradesToTheUnavailableFallback()
     {
         var provider = Provider((_, _, _) =>
             Task.FromException<string>(new HttpRequestException("boom")));
@@ -139,7 +139,7 @@ public sealed class OpenAiWorkflowAiProviderTests
     }
 
     [Fact]
-    public async Task A_request_that_outlives_the_timeout_reports_the_timeout()
+    public async Task ExplainAsync_RequestThatOutlivesTheTimeout_ReportsTheTimeout()
     {
         // The delegate honours the token it is handed — the token the provider's own
         // timeout envelope controls. Nothing here waits five seconds; the envelope is
@@ -161,7 +161,7 @@ public sealed class OpenAiWorkflowAiProviderTests
     }
 
     [Fact]
-    public async Task Without_an_api_key_the_public_constructor_degrades_before_any_request()
+    public async Task ExplainAsync_NoApiKeyConfigured_DegradesBeforeAnyRequest()
     {
         var provider = new OpenAiWorkflowAiProvider(
             new OpenAiOptions { ApiKey = "  ", Model = "m" },

@@ -39,7 +39,7 @@ public sealed class CorpusEval
 
     [Theory]
     [MemberData(nameof(CorpusFiles))]
-    public void Scanner_finds_exactly_what_the_corpus_expects(string fileName)
+    public void Scanner_CorpusEntry_FindsExactlyWhatIsExpected(string fileName)
     {
         CorpusEntry entry = GoldenCorpus.Entries.Single(candidate => candidate.FileName == fileName);
         string[] actual = Scan(fileName);
@@ -62,7 +62,7 @@ public sealed class CorpusEval
     }
 
     [Fact]
-    public void The_clean_baseline_produces_nothing()
+    public void Scanner_CleanBaseline_ProducesNoFindings()
     {
         // Called out separately from the theory because a false positive here is the one
         // failure that discredits the whole tool: if the workflow that does everything right
@@ -71,7 +71,7 @@ public sealed class CorpusEval
     }
 
     [Fact]
-    public void Every_registered_rule_is_exercised_by_the_corpus()
+    public void Corpus_RegisteredRules_AreAllExercised()
     {
         string[] covered = [.. GoldenCorpus.Entries.SelectMany(entry => entry.ExpectedRuleIds).Distinct()];
         string[] uncovered = [.. AllRules.Select(rule => rule.RuleId)
@@ -85,7 +85,7 @@ public sealed class CorpusEval
     }
 
     [Fact]
-    public void Corpus_entries_all_have_a_file_on_disk()
+    public void Corpus_DeclaredEntries_AllHaveAFileOnDisk()
     {
         string[] missing = [.. GoldenCorpus.Entries
             .Select(entry => entry.FileName)
@@ -95,7 +95,7 @@ public sealed class CorpusEval
     }
 
     [Fact]
-    public void Corpus_files_on_disk_are_all_declared()
+    public void Corpus_FilesOnDisk_AreAllDeclared()
     {
         // The reverse direction. An undeclared .yml sitting in Corpus/ looks like coverage
         // in a directory listing while contributing nothing to the score.
@@ -110,7 +110,7 @@ public sealed class CorpusEval
     }
 
     [Fact]
-    public void Write_scoreboard()
+    public void Corpus_AfterEvaluation_WritesTheScoreboard()
     {
         // Not an assertion — this emits the artifact CI publishes. Kept as a fact so it runs
         // in the ordinary test pass rather than needing a separate entry point.

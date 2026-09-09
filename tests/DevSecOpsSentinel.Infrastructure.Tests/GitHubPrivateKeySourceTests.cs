@@ -35,7 +35,7 @@ public sealed class GitHubPrivateKeySourceTests : IDisposable
     }
 
     [Fact]
-    public void Pem_supplied_as_configuration_is_used_directly()
+    public void Resolve_PemSuppliedAsConfiguration_IsUsedDirectly()
     {
         GitHubPrivateKeySource source = new(new GitHubOptions { PrivateKey = _pem });
 
@@ -45,7 +45,7 @@ public sealed class GitHubPrivateKeySourceTests : IDisposable
     }
 
     [Fact]
-    public void Base64_encoded_pem_is_decoded()
+    public void Resolve_Base64EncodedPem_IsDecoded()
     {
         // Deployment settings and environment variables handle line breaks
         // inconsistently, so a key pasted into one frequently arrives mangled.
@@ -58,7 +58,7 @@ public sealed class GitHubPrivateKeySourceTests : IDisposable
     }
 
     [Fact]
-    public void The_resolved_key_actually_imports()
+    public void Resolve_ResolvedKey_ImportsAsAnRsaKey()
     {
         // The point of all of this is that something can sign with it.
         GitHubPrivateKeySource source = new(new GitHubOptions
@@ -73,7 +73,7 @@ public sealed class GitHubPrivateKeySourceTests : IDisposable
     }
 
     [Fact]
-    public void A_file_path_is_used_when_no_key_is_configured()
+    public void Resolve_NoConfiguredKey_FallsBackToTheFilePath()
     {
         File.WriteAllText(_keyPath, _pem);
 
@@ -85,7 +85,7 @@ public sealed class GitHubPrivateKeySourceTests : IDisposable
     }
 
     [Fact]
-    public void Configuration_wins_when_both_are_supplied()
+    public void Resolve_BothConfiguredKeyAndFilePath_PrefersTheConfiguredKey()
     {
         // A stale key file left on a host must not serve a deployment that was
         // given its key through configuration.
@@ -104,7 +104,7 @@ public sealed class GitHubPrivateKeySourceTests : IDisposable
     }
 
     [Fact]
-    public void No_key_at_all_is_reported_rather_than_guessed_at()
+    public void Resolve_NoKeyAnywhere_IsReportedRatherThanGuessedAt()
     {
         GitHubPrivateKeySource source = new(new GitHubOptions());
 
@@ -118,7 +118,7 @@ public sealed class GitHubPrivateKeySourceTests : IDisposable
     }
 
     [Fact]
-    public void A_missing_file_is_reported_as_unavailable()
+    public void Resolve_MissingFile_IsReportedAsUnavailable()
     {
         GitHubPrivateKeySource source = new(new GitHubOptions
         {
@@ -130,7 +130,7 @@ public sealed class GitHubPrivateKeySourceTests : IDisposable
     }
 
     [Fact]
-    public void A_value_that_is_neither_pem_nor_base64_pem_says_so()
+    public void Resolve_ValueThatIsNeitherPemNorBase64_ReportsWhyItIsUnusable()
     {
         GitHubPrivateKeySource source = new(new GitHubOptions
         {
@@ -144,7 +144,7 @@ public sealed class GitHubPrivateKeySourceTests : IDisposable
     }
 
     [Fact]
-    public void The_key_is_read_once_and_reused()
+    public void Resolve_CalledTwice_ReadsTheKeyOnceAndReusesIt()
     {
         // The JWT factory previously re-read the file on every token refresh.
         File.WriteAllText(_keyPath, _pem);
