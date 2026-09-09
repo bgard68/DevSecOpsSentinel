@@ -26,7 +26,7 @@ public sealed class TrustBoundaryTests
     // ---- GHA004: the trigger earns its severity ---------------------------
 
     [Fact]
-    public void Checking_out_the_pull_request_head_stays_critical()
+    public void Evaluate_JobCheckingOutThePullRequestHead_StaysCritical()
     {
         ParsedWorkflow workflow = Parse(
             "name: Label",
@@ -51,7 +51,7 @@ public sealed class TrustBoundaryTests
     }
 
     [Fact]
-    public void The_trigger_without_untrusted_code_is_low_not_critical()
+    public void Evaluate_TriggerWithoutUntrustedCode_IsLowNotCritical()
     {
         // Labelling a fork's pull request is what the trigger is for. It needs a
         // reader's eye, not the band reserved for remote code execution.
@@ -79,7 +79,7 @@ public sealed class TrustBoundaryTests
     }
 
     [Fact]
-    public void Checking_out_the_base_branch_is_not_untrusted()
+    public void Evaluate_CheckoutOfTheBaseBranch_IsNotTreatedAsUntrusted()
     {
         // A checkout with no ref takes the base, which is the trusted side.
         ParsedWorkflow workflow = Parse(
@@ -99,7 +99,7 @@ public sealed class TrustBoundaryTests
     }
 
     [Fact]
-    public void A_workflow_without_the_trigger_is_not_reported()
+    public void Evaluate_WorkflowWithoutThePrivilegedTrigger_IsNotReported()
     {
         ParsedWorkflow workflow = Parse(
             "name: Build",
@@ -119,7 +119,7 @@ public sealed class TrustBoundaryTests
     // ---- GHA006: the token is left where something uses it ----------------
 
     [Fact]
-    public void A_job_that_pushes_needs_the_credential_it_persisted()
+    public void Evaluate_JobThatPushes_NeedsTheCredentialItPersisted()
     {
         ParsedWorkflow workflow = Parse(
             "name: Release",
@@ -139,7 +139,7 @@ public sealed class TrustBoundaryTests
     }
 
     [Fact]
-    public void A_job_that_only_builds_is_still_reported()
+    public void Evaluate_JobThatOnlyBuilds_IsStillReported()
     {
         // The neighbouring case: same shape, no push, so the credential sits on
         // disk for every later step with nothing needing it.
@@ -164,7 +164,7 @@ public sealed class TrustBoundaryTests
     }
 
     [Fact]
-    public void A_push_in_another_job_does_not_excuse_this_one()
+    public void Evaluate_PushInAnotherJob_DoesNotExcuseThisOne()
     {
         // Credentials are per-job. The second job's push says nothing about the
         // first job's checkout.
@@ -194,7 +194,7 @@ public sealed class TrustBoundaryTests
     }
 
     [Fact]
-    public void A_push_before_the_checkout_does_not_excuse_it()
+    public void Evaluate_PushBeforeTheCheckout_DoesNotExcuseIt()
     {
         // Ordering matters: that push used whatever was on disk beforehand, not
         // the credential this checkout is about to write.
@@ -214,7 +214,7 @@ public sealed class TrustBoundaryTests
     }
 
     [Fact]
-    public void A_step_named_after_pushing_does_not_excuse_it()
+    public void Evaluate_StepMerelyNamedAfterPushing_DoesNotExcuseIt()
     {
         // Only script text is searched. A step name that happens to read like a
         // command must not silence a real credential exposure.
@@ -234,7 +234,7 @@ public sealed class TrustBoundaryTests
     }
 
     [Fact]
-    public void An_option_between_git_and_push_is_still_a_push()
+    public void Evaluate_OptionBetweenGitAndPush_IsStillRecognisedAsAPush()
     {
         ParsedWorkflow workflow = Parse(
             "name: Pages",
@@ -252,7 +252,7 @@ public sealed class TrustBoundaryTests
     }
 
     [Fact]
-    public void Turning_the_credential_off_is_still_the_way_to_close_it()
+    public void Evaluate_PersistCredentialsDisabled_ClosesTheFinding()
     {
         ParsedWorkflow workflow = Parse(
             "name: Build",

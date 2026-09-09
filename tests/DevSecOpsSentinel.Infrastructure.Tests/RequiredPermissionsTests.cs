@@ -23,7 +23,7 @@ public sealed class RequiredPermissionsTests
     private readonly WorkflowParser _parser = new();
 
     [Fact]
-    public void Codeql_job_holding_only_what_it_needs_is_not_reported()
+    public void Evaluate_CodeqlJobHoldingOnlyTheScopeItNeeds_IsNotReported()
     {
         ParsedWorkflow workflow = Parse(
             "name: CodeQL",
@@ -45,7 +45,7 @@ public sealed class RequiredPermissionsTests
     }
 
     [Fact]
-    public void The_same_grant_without_the_action_is_still_reported()
+    public void Evaluate_SameGrantWithoutTheActionThatNeedsIt_IsStillReported()
     {
         // The negative of the case above: nothing in the job uploads results, so
         // the scope has no justification and the exemption must not apply.
@@ -69,7 +69,7 @@ public sealed class RequiredPermissionsTests
     }
 
     [Fact]
-    public void A_required_scope_excuses_only_itself()
+    public void Evaluate_RequiredScopeBesideAnUnrequiredOne_ExcusesOnlyItself()
     {
         // CodeQL justifies security-events and nothing else; contents: write in
         // the same job is still an excess and still High.
@@ -94,7 +94,7 @@ public sealed class RequiredPermissionsTests
     }
 
     [Fact]
-    public void A_sub_action_matches_the_repository_entry()
+    public void Evaluate_SubActionOfAKnownRepository_MatchesTheRepositoryEntry()
     {
         // One catalogue entry covers init, analyze and upload-sarif.
         ParsedWorkflow workflow = Parse(
@@ -113,7 +113,7 @@ public sealed class RequiredPermissionsTests
     }
 
     [Fact]
-    public void A_sha_pinned_action_matches_the_same_entry()
+    public void Evaluate_ShaPinnedAction_MatchesTheSameRepositoryEntry()
     {
         // Pinning is the recommended form, so it must not cost the exemption.
         ParsedWorkflow workflow = Parse(
@@ -132,7 +132,7 @@ public sealed class RequiredPermissionsTests
     }
 
     [Fact]
-    public void A_lookalike_repository_does_not_borrow_the_exemption()
+    public void Evaluate_LookalikeRepositoryName_DoesNotBorrowTheExemption()
     {
         // Prefix matching stops at the separator: codeql-action-mirror is not
         // codeql-action, and an attacker choosing the name must not inherit it.
@@ -154,7 +154,7 @@ public sealed class RequiredPermissionsTests
     [Theory]
     [InlineData("always")]
     [InlineData("on-failure")]
-    public void Dependency_review_needs_pull_requests_when_it_comments(string mode)
+    public void Evaluate_DependencyReviewThatComments_NeedsPullRequestsWrite(string mode)
     {
         ParsedWorkflow workflow = Parse(
             "name: Review",
@@ -177,7 +177,7 @@ public sealed class RequiredPermissionsTests
     [Theory]
     [InlineData("never")]
     [InlineData(null)]
-    public void Dependency_review_does_not_need_it_when_it_stays_quiet(string? mode)
+    public void Evaluate_DependencyReviewThatStaysQuiet_DoesNotNeedPullRequestsWrite(string? mode)
     {
         // A conditional requirement must not excuse the configurations where the
         // condition does not hold, or the entry becomes a blanket exemption.
@@ -209,7 +209,7 @@ public sealed class RequiredPermissionsTests
     }
 
     [Fact]
-    public void A_required_scope_granted_to_every_job_is_reported_as_too_broad()
+    public void Evaluate_RequiredScopeGrantedToEveryJob_IsReportedAsTooBroad()
     {
         // Workflow scope reaches jobs that have no use for it, including ones
         // added later, so the advice is to move it rather than remove it.
@@ -242,7 +242,7 @@ public sealed class RequiredPermissionsTests
     [InlineData("security-events", WorkflowSeverity.Low)]
     [InlineData("checks", WorkflowSeverity.Low)]
     [InlineData("statuses", WorkflowSeverity.Low)]
-    public void Severity_follows_what_the_scope_can_do(string scope, WorkflowSeverity expected)
+    public void Evaluate_DifferentWriteScopes_AssignsSeverityByWhatTheScopeCanDo(string scope, WorkflowSeverity expected)
     {
         // Pushing code and hiding an alert are not the same risk, and a constant
         // severity across every scope hides that.
@@ -265,7 +265,7 @@ public sealed class RequiredPermissionsTests
     }
 
     [Fact]
-    public void An_unknown_scope_is_reported_rather_than_dismissed()
+    public void Evaluate_UnknownScope_IsReportedRatherThanDismissed()
     {
         // A scope GitHub adds after this table was written must not fall through
         // the exemption path unreported.
@@ -288,7 +288,7 @@ public sealed class RequiredPermissionsTests
     }
 
     [Fact]
-    public void Write_all_is_reported_whatever_the_job_runs()
+    public void Evaluate_WriteAll_IsReportedWhateverTheJobRuns()
     {
         // No action requires every scope at once, so nothing exempts write-all.
         ParsedWorkflow workflow = Parse(
@@ -310,7 +310,7 @@ public sealed class RequiredPermissionsTests
     }
 
     [Fact]
-    public void A_reusable_workflow_call_cannot_justify_a_grant()
+    public void Evaluate_ReusableWorkflowCall_CannotJustifyAGrant()
     {
         // The called workflow's steps are not visible here, so its needs are not
         // knowable; the conservative answer is to report and let a human say.

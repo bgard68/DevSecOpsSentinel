@@ -55,7 +55,7 @@ public sealed class CultureInvarianceTests
     [Theory]
     [InlineData("en-US")]
     [InlineData("tr-TR")]
-    public void An_uppercased_acceptance_is_read_in_any_culture(string culture)
+    public void Parse_UppercasedAcceptanceUnderATurkishCulture_IsStillRead(string culture)
     {
         InCulture(culture, () =>
         {

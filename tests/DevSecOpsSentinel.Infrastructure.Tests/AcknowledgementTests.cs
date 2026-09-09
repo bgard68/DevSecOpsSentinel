@@ -18,7 +18,7 @@ public sealed class AcknowledgementTests
     private readonly WorkflowParser _parser = new();
 
     [Fact]
-    public void An_accepted_grant_names_the_action_that_requires_it()
+    public void Analyze_AcceptedGrant_NamesTheActionThatRequiresIt()
     {
         ParsedWorkflow workflow = Parse(
             "name: CodeQL",
@@ -44,7 +44,7 @@ public sealed class AcknowledgementTests
     }
 
     [Fact]
-    public void A_grant_that_is_reported_is_not_also_acknowledged()
+    public void Analyze_GrantThatIsReported_IsNotAlsoAcknowledged()
     {
         // The two lists are exclusive: a scope cannot be both the problem and
         // the thing that was fine.
@@ -67,7 +67,7 @@ public sealed class AcknowledgementTests
     }
 
     [Fact]
-    public void A_persisted_credential_that_gets_pushed_with_is_acknowledged()
+    public void Analyze_PersistedCredentialThatGetsPushedWith_IsAcknowledged()
     {
         ParsedWorkflow workflow = Parse(
             "name: Release",
@@ -91,7 +91,7 @@ public sealed class AcknowledgementTests
     }
 
     [Fact]
-    public void A_checkout_that_is_reported_is_not_also_acknowledged()
+    public void Analyze_CheckoutThatIsReported_IsNotAlsoAcknowledged()
     {
         ParsedWorkflow workflow = Parse(
             "name: Build",
@@ -112,7 +112,7 @@ public sealed class AcknowledgementTests
     }
 
     [Fact]
-    public void Rules_that_never_suppress_anything_acknowledge_nothing()
+    public void Analyze_RulesThatNeverSuppressAnything_AcknowledgeNothing()
     {
         // The interface defaults, so the other rules needed no opinion; this
         // pins that the default is empty rather than a surprise.
