@@ -6,7 +6,7 @@ namespace DevSecOpsSentinel.Application.Tests;
 public sealed class WorkflowAnalysisServiceTests
 {
     [Fact]
-    public async Task Invalid_parse_result_is_returned_without_executing_rules()
+    public async Task AnalyzeAsync_InvalidParseResult_ReturnsWithoutExecutingRules()
     {
         StubParser parser = new();
 

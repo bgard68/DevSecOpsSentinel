@@ -46,7 +46,15 @@ public sealed record WorkflowStructure(
         !PermissionsDeclared &&
         Jobs.All(job => !job.PermissionsDeclared);
 
+    /// <summary>
+    /// Whether any declared trigger contains <paramref name="name"/>.
+    ///
+    /// The empty probe is rejected rather than matched. Contains("") holds for
+    /// every string, so a rule that passed an unset option would match every
+    /// workflow ever scanned instead of failing closed.
+    /// </summary>
     public bool HasTrigger(string name) =>
+        !string.IsNullOrWhiteSpace(name) &&
         Triggers.Any(trigger =>
             trigger.Contains(name, StringComparison.OrdinalIgnoreCase));
 }

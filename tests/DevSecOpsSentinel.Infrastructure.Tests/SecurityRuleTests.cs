@@ -11,7 +11,7 @@ public sealed class SecurityRuleTests
     private readonly WorkflowParser _parser = new();
 
     [Fact]
-    public void Vulnerable_workflow_triggers_expected_rules()
+    public void Evaluate_VulnerableWorkflow_TriggersTheExpectedRules()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -40,7 +40,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Hardened_workflow_has_no_findings()
+    public void Evaluate_HardenedWorkflow_ProducesNoFindings()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -70,7 +70,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Uses_text_inside_literal_run_block_is_not_an_action()
+    public void Evaluate_UsesTextInsideALiteralRunBlock_IsNotTreatedAsAnAction()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -93,7 +93,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Uses_text_inside_folded_run_block_is_not_an_action()
+    public void Evaluate_UsesTextInsideAFoldedRunBlock_IsNotTreatedAsAnAction()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -116,7 +116,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Real_action_after_run_block_is_still_evaluated()
+    public void Evaluate_RealActionAfterARunBlock_IsStillEvaluated()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -141,7 +141,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public async Task Patch_generator_never_rewrites_run_block_content()
+    public async Task GenerateAsync_RunBlockContent_IsNeverRewritten()
     {
         string content = string.Join('\n',
         [
@@ -191,7 +191,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Workflow_level_permissions_mapping_detects_write_entry()
+    public void Evaluate_WorkflowLevelPermissionsMapping_DetectsTheWriteEntry()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -215,7 +215,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Job_level_permissions_mapping_detects_write_entry()
+    public void Evaluate_JobLevelPermissionsMapping_DetectsTheWriteEntry()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -239,7 +239,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Unrelated_write_values_are_not_permissions_findings()
+    public void Evaluate_UnrelatedWriteValues_AreNotPermissionsFindings()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -263,7 +263,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Commented_write_text_is_not_a_permissions_finding()
+    public void Evaluate_CommentedWriteText_IsNotAPermissionsFinding()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -284,7 +284,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Inline_write_all_is_detected_and_remains_auto_fixable()
+    public void Evaluate_InlineWriteAll_IsDetectedAndRemainsAutoFixable()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -307,7 +307,7 @@ public sealed class SecurityRuleTests
 
 
     [Fact]
-    public async Task Patch_is_valid_only_when_applied_findings_are_removed()
+    public async Task GenerateAsync_AppliedFindingsRemoved_MarksThePatchValid()
     {
         string content = string.Join('\n',
         [
@@ -348,7 +348,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public async Task Patch_is_invalid_when_remediation_introduces_a_new_finding()
+    public async Task GenerateAsync_RemediationIntroducesANewFinding_MarksThePatchInvalid()
     {
         string content = string.Join('\n',
         [
@@ -436,7 +436,7 @@ public sealed class SecurityRuleTests
 
 
     [Fact]
-    public async Task Action_reference_resolution_is_disabled_by_default()
+    public async Task GenerateAsync_ResolutionDisabledByDefault_LeavesTheReferenceAndWarns()
     {
         string content = string.Join('\n',
         [
@@ -475,7 +475,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public async Task Unresolved_action_reference_is_not_rewritten_or_counted_as_applied()
+    public async Task GenerateAsync_UnresolvedActionReference_IsNotRewrittenOrCountedAsApplied()
     {
         string content = string.Join('\n',
         [
@@ -549,7 +549,7 @@ public sealed class SecurityRuleTests
     [InlineData("github.event.comment.body")]
     [InlineData("github.event.head_commit.message")]
     [InlineData("github.head_ref")]
-    public void Untrusted_expression_in_a_run_block_is_a_script_injection(
+    public void Evaluate_UntrustedExpressionInARunBlock_IsAScriptInjection(
         string context)
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
@@ -578,7 +578,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Untrusted_expression_in_a_single_line_run_is_detected()
+    public void Evaluate_UntrustedExpressionInASingleLineRun_IsDetected()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -600,7 +600,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Untrusted_expression_in_a_github_script_block_is_detected()
+    public void Evaluate_UntrustedExpressionInAGitHubScriptBlock_IsDetected()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -622,7 +622,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Trusted_expressions_in_a_run_block_are_not_reported()
+    public void Evaluate_TrustedExpressionsInARunBlock_AreNotReported()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -646,7 +646,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Untrusted_expression_outside_a_script_body_is_not_reported()
+    public void Evaluate_UntrustedExpressionOutsideAScriptBody_IsNotReported()
     {
         // `if:` and `with:` values are evaluated by the expression engine, not
         // substituted into a shell, so they are not injection sinks.
@@ -671,7 +671,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Bound_environment_variable_is_the_recommended_safe_form()
+    public void Evaluate_BoundEnvironmentVariable_IsNotReportedAsInjection()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -694,7 +694,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Script_block_content_is_still_excluded_from_yaml_lines()
+    public void Parse_ScriptBlockContent_IsExcludedFromYamlLines()
     {
         // The parser must keep withholding script bodies from Lines, or the
         // unpinned-action and permissions rules regress to false positives.
@@ -724,7 +724,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Checkout_without_persist_credentials_uses_the_unsafe_default()
+    public void Evaluate_CheckoutWithoutPersistCredentials_IsReportedAsUnsafeDefault()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -747,7 +747,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Checkout_that_disables_persist_credentials_is_not_reported()
+    public void Evaluate_CheckoutDisablingPersistCredentials_IsNotReported()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -769,7 +769,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Persist_credentials_set_to_true_is_reported_at_its_own_line()
+    public void Evaluate_PersistCredentialsSetToTrue_IsReportedAtItsOwnLine()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -793,7 +793,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Non_checkout_actions_are_not_persist_credentials_findings()
+    public void Evaluate_NonCheckoutAction_IsNotAPersistedCredentialsFinding()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -814,7 +814,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Pull_request_target_checking_out_head_sha_is_critical()
+    public void Evaluate_PullRequestTargetCheckingOutHeadSha_IsReportedAsCritical()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -840,7 +840,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Pull_request_target_without_an_untrusted_ref_is_not_reported()
+    public void Evaluate_PullRequestTargetWithoutAnUntrustedRef_IsNotReported()
     {
         // The trigger alone is GHA004's concern. Without a checkout of the
         // contributor's code there is no execution of untrusted input.
@@ -861,7 +861,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Untrusted_ref_under_the_safe_trigger_is_not_reported()
+    public void Evaluate_UntrustedRefUnderTheSafeTrigger_IsNotReported()
     {
         // pull_request already runs in the contributor's context without
         // secrets, so checking out their head is the normal, safe thing to do.
@@ -884,7 +884,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void With_inputs_are_attributed_to_the_step_that_declares_them()
+    public void Parse_WithInputs_AreAttributedToTheDeclaringStep()
     {
         // Two checkout steps in one job: only the second disables the token.
         ParsedWorkflow workflow = Parse(string.Join('\n',
@@ -910,7 +910,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Flow_style_permissions_are_detected()
+    public void Evaluate_FlowStylePermissions_AreDetected()
     {
         // Indentation matching only recognised a permissions: block followed by
         // indented entries, so this form was silently missed.
@@ -932,7 +932,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Quoted_on_key_still_yields_triggers()
+    public void Parse_QuotedOnKey_StillYieldsTriggers()
     {
         // Written this way to stop YAML 1.1 resolving `on` to the boolean true.
         // A prefix match on "on:" does not see it.
@@ -952,7 +952,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Trigger_written_as_a_flow_sequence_is_understood()
+    public void Parse_TriggerWrittenAsAFlowSequence_IsUnderstood()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -968,7 +968,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Permission_value_followed_by_a_comment_is_still_a_grant()
+    public void Evaluate_PermissionValueFollowedByAComment_IsStillAGrant()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -986,7 +986,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Malformed_yaml_is_rejected_rather_than_partially_analyzed()
+    public void Parse_MalformedYaml_IsRejectedRatherThanPartiallyAnalyzed()
     {
         // Returning findings from a document the parser could not read would
         // omit whatever the malformed region contained, which is the failure
@@ -1010,7 +1010,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Inputs_are_attributed_when_name_precedes_uses()
+    public void Parse_InputsWhenNamePrecedesUses_AreStillAttributed()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -1039,7 +1039,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Reusable_workflow_call_inheriting_secrets_is_reported()
+    public void Evaluate_ReusableWorkflowCallInheritingSecrets_IsReported()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -1061,7 +1061,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Named_secrets_on_a_reusable_call_are_not_reported()
+    public void Evaluate_NamedSecretsOnAReusableCall_AreNotReported()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -1080,7 +1080,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Workflow_without_any_permissions_block_is_reported()
+    public void Evaluate_WorkflowWithoutAnyPermissionsBlock_IsReported()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -1100,7 +1100,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Job_level_permissions_satisfy_the_declaration_requirement()
+    public void Evaluate_JobLevelPermissions_SatisfyTheDeclarationRequirement()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -1120,7 +1120,7 @@ public sealed class SecurityRuleTests
     [Theory]
     [InlineData("permissions: {}")]
     [InlineData("permissions:")]
-    public void An_empty_permissions_block_is_a_declaration_not_an_omission(
+    public void Evaluate_EmptyPermissionsBlock_IsADeclarationNotAnOmission(
         string declaration)
     {
         // permissions: {} grants the job token nothing at all - the strongest
@@ -1145,7 +1145,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Id_token_write_is_not_reported_as_excessive()
+    public void Evaluate_IdTokenWrite_IsNotReportedAsExcessive()
     {
         // It grants no repository access - only the right to ask for an OIDC
         // token - and it is what removes a stored publish credential from a
@@ -1168,7 +1168,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void A_specific_write_grant_other_than_id_token_is_still_reported()
+    public void Evaluate_SpecificWriteGrantOtherThanIdToken_IsStillReported()
     {
         // The exemption is for id-token alone, not for named write grants
         // generally.
@@ -1193,7 +1193,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void An_empty_permissions_block_grants_nothing_to_report_as_excessive()
+    public void Evaluate_EmptyPermissionsBlock_GrantsNothingToReportAsExcessive()
     {
         // The companion check: saying nothing is not the same as granting
         // something, so GHA002 must stay quiet here too.
@@ -1214,7 +1214,7 @@ public sealed class SecurityRuleTests
     [Theory]
     [InlineData("self-hosted")]
     [InlineData("[self-hosted, linux, x64]")]
-    public void Self_hosted_runner_on_a_pull_request_trigger_is_reported(
+    public void Evaluate_SelfHostedRunnerOnAPullRequestTrigger_IsReported(
         string runsOn)
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
@@ -1237,7 +1237,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Self_hosted_runner_outside_a_pull_request_trigger_is_not_reported()
+    public void Evaluate_SelfHostedRunnerOutsideAPullRequestTrigger_IsNotReported()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -1256,7 +1256,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Artifact_download_in_a_workflow_run_job_is_reported()
+    public void Evaluate_ArtifactDownloadInAWorkflowRunJob_IsReported()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [
@@ -1283,7 +1283,7 @@ public sealed class SecurityRuleTests
     }
 
     [Fact]
-    public void Artifact_download_under_an_ordinary_trigger_is_not_reported()
+    public void Evaluate_ArtifactDownloadUnderAnOrdinaryTrigger_IsNotReported()
     {
         ParsedWorkflow workflow = Parse(string.Join('\n',
         [

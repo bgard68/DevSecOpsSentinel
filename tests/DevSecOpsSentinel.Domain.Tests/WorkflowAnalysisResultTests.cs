@@ -5,7 +5,7 @@ namespace DevSecOpsSentinel.Domain.Tests;
 public sealed class WorkflowAnalysisResultTests
 {
     [Fact]
-    public void Finding_count_matches_findings()
+    public void FindingCount_ResultWithOneFinding_ReturnsOne()
     {
         WorkflowFinding finding = new(
             "GHA001",

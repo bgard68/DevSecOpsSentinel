@@ -49,7 +49,7 @@ public sealed class GitHubRepositoryReaderTests
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
     [Fact]
-    public async Task Repositories_outside_the_allowlist_are_dropped_even_when_the_installation_grants_them()
+    public async Task GetRepositoriesAsync_InstallationGrantsUnlistedRepositories_DropsThem()
     {
         // The installation and the allowlist are separate gates on purpose: someone
         // widening the App's installation must not silently widen this application.
@@ -72,7 +72,7 @@ public sealed class GitHubRepositoryReaderTests
     }
 
     [Fact]
-    public async Task Requests_carry_the_installation_token_and_the_api_version()
+    public async Task GetRepositoriesAsync_AnyRequest_CarriesTheInstallationTokenAndApiVersion()
     {
         FakeHttp http = new(_ => Json("""{ "repositories": [] }"""));
         var reader = new GitHubRepositoryReader(http, Options("octo/Sandbox"), new FakeTokenProvider());
@@ -86,7 +86,7 @@ public sealed class GitHubRepositoryReaderTests
     }
 
     [Fact]
-    public async Task Workflow_listing_for_a_repository_outside_the_allowlist_is_refused_before_any_request()
+    public async Task GetWorkflowsAsync_RepositoryOutsideTheAllowlist_IsRefusedBeforeAnyRequest()
     {
         FakeHttp http = new(_ => throw new InvalidOperationException("must not be called"));
         var reader = new GitHubRepositoryReader(http, Options("octo/Sandbox"), new FakeTokenProvider());
@@ -97,7 +97,7 @@ public sealed class GitHubRepositoryReaderTests
     }
 
     [Fact]
-    public async Task Unconfigured_integration_is_refused_before_any_request()
+    public async Task GetRepositoriesAsync_UnconfiguredIntegration_IsRefusedBeforeAnyRequest()
     {
         FakeHttp http = new(_ => throw new InvalidOperationException("must not be called"));
         var reader = new GitHubRepositoryReader(http, new GitHubOptions(), new FakeTokenProvider());
@@ -108,7 +108,7 @@ public sealed class GitHubRepositoryReaderTests
     }
 
     [Fact]
-    public async Task Workflow_listing_returns_only_yaml_files_sorted_by_name()
+    public async Task GetWorkflowsAsync_MixedDirectoryContents_ReturnsOnlyYamlFilesSortedByName()
     {
         FakeHttp http = new(_ => Json("""
             [
@@ -131,7 +131,7 @@ public sealed class GitHubRepositoryReaderTests
     }
 
     [Fact]
-    public async Task A_missing_workflows_directory_is_an_empty_list_not_an_error()
+    public async Task GetWorkflowsAsync_MissingWorkflowsDirectory_ReturnsAnEmptyListNotAnError()
     {
         FakeHttp http = new(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
         var reader = new GitHubRepositoryReader(http, Options("octo/Sandbox"), new FakeTokenProvider());
@@ -140,7 +140,7 @@ public sealed class GitHubRepositoryReaderTests
     }
 
     [Fact]
-    public async Task Workflow_content_is_base64_decoded_with_the_reference_applied()
+    public async Task GetWorkflowContentAsync_Base64Payload_DecodesItWithTheReferenceApplied()
     {
         string yaml = "name: CI\non:\n  push:\n";
         string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(yaml));
@@ -161,7 +161,7 @@ public sealed class GitHubRepositoryReaderTests
     }
 
     [Fact]
-    public async Task Missing_workflow_content_is_null_not_an_error()
+    public async Task GetWorkflowContentAsync_MissingFile_ReturnsNullNotAnError()
     {
         FakeHttp http = new(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
         var reader = new GitHubRepositoryReader(http, Options("octo/Sandbox"), new FakeTokenProvider());
@@ -171,7 +171,7 @@ public sealed class GitHubRepositoryReaderTests
     }
 
     [Fact]
-    public async Task Content_that_is_not_base64_is_rejected_loudly()
+    public async Task GetWorkflowContentAsync_ContentThatIsNotBase64_IsRejectedLoudly()
     {
         // Silent acceptance here would analyze garbage and report it as the repository's
         // workflow. Loud is correct.

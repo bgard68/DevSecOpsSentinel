@@ -14,7 +14,7 @@ public sealed class FailurePathTests(ApiFactory factory)
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-    public async Task Oversized_workflow_returns_payload_too_large()
+    public async Task Analyze_WorkflowOverTheSizeLimit_ReturnsPayloadTooLarge()
     {
         // The handler rejects above 100,000 characters. Kestrel's body limit is
         // 256 KiB, so this reaches the handler rather than being cut off by the
@@ -33,7 +33,7 @@ public sealed class FailurePathTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Workflow_just_under_the_limit_is_still_accepted()
+    public async Task Analyze_WorkflowJustUnderTheSizeLimit_ReturnsOk()
     {
         // Guards the boundary from the other side, so a future off-by-one that
         // rejects valid input is not mistaken for the rule above working.
@@ -52,7 +52,7 @@ public sealed class FailurePathTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task A_request_path_cannot_forge_a_log_entry()
+    public async Task Get_RequestPathWithControlCharacters_CannotForgeALogEntry()
     {
         // A path containing a line break would otherwise split one log entry
         // into several, letting a caller fabricate lines that look as though the
@@ -64,7 +64,7 @@ public sealed class FailurePathTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task GitHub_repositories_report_unavailable_when_unconfigured()
+    public async Task GetGitHubRepositories_Unconfigured_ReportsUnavailable()
     {
         // GitHub is disabled in this configuration, so the endpoint must say the
         // integration is unavailable rather than returning an empty list, which
@@ -87,7 +87,7 @@ public sealed class RateLimitTests(RateLimitedApiFactory factory)
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-    public async Task Analysis_beyond_the_permitted_rate_is_rejected()
+    public async Task Analyze_BeyondTheRateLimit_ReturnsTooManyRequests()
     {
         object payload = new
         {

@@ -19,7 +19,7 @@ public sealed class ApiSecurityTests(
     [InlineData("/api/security/status")]
     [InlineData("/openapi/v1.json")]
     [InlineData("/scalar")]
-    public async Task Public_endpoints_do_not_require_api_key(
+    public async Task Get_PublicEndpoint_SucceedsWithoutAnApiKey(
         string path)
     {
         HttpResponseMessage response =
@@ -31,7 +31,7 @@ public sealed class ApiSecurityTests(
     }
 
     [Fact]
-    public async Task Protected_endpoint_rejects_missing_api_key()
+    public async Task Get_ProtectedEndpointWithoutKey_ReturnsUnauthorized()
     {
         HttpResponseMessage response =
             await _client.GetAsync("/api/rules");
@@ -54,7 +54,7 @@ public sealed class ApiSecurityTests(
     }
 
     [Fact]
-    public async Task Protected_endpoint_rejects_invalid_api_key()
+    public async Task Get_ProtectedEndpointWithWrongKey_ReturnsUnauthorized()
     {
         using HttpRequestMessage request =
             new(HttpMethod.Get, "/api/rules");
@@ -72,7 +72,7 @@ public sealed class ApiSecurityTests(
     }
 
     [Fact]
-    public async Task Protected_endpoint_accepts_valid_api_key()
+    public async Task Get_ProtectedEndpointWithValidKey_ReturnsOk()
     {
         using HttpRequestMessage request =
             new(HttpMethod.Get, "/api/rules");
@@ -88,7 +88,7 @@ public sealed class ApiSecurityTests(
     }
 
     [Fact]
-    public async Task Workflow_analysis_requires_valid_api_key()
+    public async Task Analyze_RequiredModeWithoutKey_ReturnsUnauthorized()
     {
         var payload = new
         {
@@ -132,7 +132,7 @@ public sealed class ApiSecurityTests(
     }
 
     [Fact]
-    public void Disabled_security_is_rejected_outside_development_and_testing()
+    public void IsValidForEnvironment_DisabledModeInProduction_ReturnsFalse()
     {
         ApiSecurityOptions options = new()
         {
@@ -147,7 +147,7 @@ public sealed class ApiSecurityTests(
     }
 
     [Fact]
-    public void Public_security_is_accepted_in_production()
+    public void IsValidForEnvironment_PublicModeInProduction_ReturnsTrue()
     {
         // Public is not a relaxation of Required - it is a different statement
         // about which endpoints need the key. Refusing it in Production would
@@ -164,7 +164,7 @@ public sealed class ApiSecurityTests(
     }
 
     [Fact]
-    public void Public_security_still_requires_a_usable_key()
+    public void IsValidForEnvironment_PublicModeWithoutKey_ReturnsFalse()
     {
         // The key has not stopped mattering; it now guards a smaller surface.
         // Accepting Public without one would silently open GitHub too.
@@ -182,7 +182,7 @@ public sealed class ApiSecurityTests(
     }
 
     [Fact]
-    public void The_failure_message_names_both_legal_production_modes()
+    public void GetValidationFailure_DisabledModeInProduction_NamesBothLegalModes()
     {
         // The previous message said Required only, which would now send a
         // reader to the wrong fix.

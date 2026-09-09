@@ -16,7 +16,7 @@ namespace DevSecOpsSentinel.Infrastructure.Tests;
 public sealed class SeverityCoverageTests
 {
     [Fact]
-    public void Every_severity_is_produced_by_at_least_one_rule()
+    public void RuleCatalogue_AllRules_ProduceEverySeverityAtLeastOnce()
     {
         HashSet<WorkflowSeverity> declared =
         [
@@ -35,7 +35,7 @@ public sealed class SeverityCoverageTests
     }
 
     [Fact]
-    public void Every_rule_declares_a_severity_the_scale_defines()
+    public void RuleCatalogue_AllRules_DeclareASeverityTheScaleDefines()
     {
         // The other direction: a rule cannot report a value outside the scale,
         // which would sort unpredictably and serialise as a number.
@@ -48,7 +48,7 @@ public sealed class SeverityCoverageTests
     }
 
     [Fact]
-    public void Rule_identifiers_are_unique()
+    public void RuleCatalogue_AllRules_HaveUniqueIdentifiers()
     {
         // Two rules sharing an id would silently merge in any report grouped by
         // it, and the AI constraint check compares rule-id sets for equality.

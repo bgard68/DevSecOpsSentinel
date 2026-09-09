@@ -28,7 +28,7 @@ public sealed class PublicRepositoryScannerTests : IDisposable
         """;
 
     [Fact]
-    public async Task Scans_a_repository_and_reports_findings_per_file()
+    public async Task ScanAsync_RepositoryWithWorkflows_ReportsFindingsPerFile()
     {
         FakeGitHub github = new();
         github.Listing("octo", "app",
@@ -45,7 +45,7 @@ public sealed class PublicRepositoryScannerTests : IDisposable
     }
 
     [Fact]
-    public async Task Second_scan_of_the_same_repository_is_served_from_cache()
+    public async Task ScanAsync_SecondScanOfTheSameRepository_IsServedFromCache()
     {
         FakeGitHub github = new();
         github.Listing("octo", "app",
@@ -63,7 +63,7 @@ public sealed class PublicRepositoryScannerTests : IDisposable
     }
 
     [Fact]
-    public async Task Missing_repository_is_not_found_and_the_failure_is_cached()
+    public async Task ScanAsync_MissingRepository_ReportsNotFoundAndCachesTheFailure()
     {
         FakeGitHub github = new() { ListingStatus = HttpStatusCode.NotFound };
 
@@ -77,7 +77,7 @@ public sealed class PublicRepositoryScannerTests : IDisposable
     }
 
     [Fact]
-    public async Task Exhausted_quota_is_reported_as_such_not_as_a_missing_repository()
+    public async Task ScanAsync_ExhaustedQuota_IsReportedAsQuotaNotAsAMissingRepository()
     {
         FakeGitHub github = new()
         {
@@ -95,7 +95,7 @@ public sealed class PublicRepositoryScannerTests : IDisposable
     [InlineData("octo", "app/../../secrets")]
     [InlineData("", "app")]
     [InlineData("octo", "a b")]
-    public async Task Names_that_are_not_plain_github_names_are_rejected_before_any_request(
+    public async Task ScanAsync_NameThatIsNotAPlainGitHubName_IsRejectedBeforeAnyRequest(
         string owner,
         string repository)
     {
@@ -109,7 +109,7 @@ public sealed class PublicRepositoryScannerTests : IDisposable
     }
 
     [Fact]
-    public async Task Oversized_files_are_skipped_and_counted_rather_than_fetched()
+    public async Task ScanAsync_OversizedFiles_AreSkippedAndCountedRatherThanFetched()
     {
         FakeGitHub github = new();
         github.Listing("octo", "app",
@@ -127,7 +127,7 @@ public sealed class PublicRepositoryScannerTests : IDisposable
     }
 
     [Fact]
-    public async Task A_repository_with_a_workflows_directory_but_no_yml_files_reports_no_workflows()
+    public async Task ScanAsync_WorkflowsDirectoryWithNoYamlFiles_ReportsNoWorkflows()
     {
         FakeGitHub github = new();
         github.Listing("octo", "app", File("README.md", 10, "https://raw.test/readme"));

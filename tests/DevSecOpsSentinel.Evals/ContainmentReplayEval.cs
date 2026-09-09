@@ -33,7 +33,7 @@ public sealed class ContainmentReplayEval
 
     [Theory]
     [MemberData(nameof(Replies))]
-    public void Gate_reaches_the_right_verdict(string responseFile)
+    public void ContainmentGate_RecordedReply_ReachesTheExpectedVerdict(string responseFile)
     {
         ReplayEntry entry = ReplayCorpus.Entries.Single(candidate => candidate.ResponseFile == responseFile);
 
@@ -54,7 +54,7 @@ public sealed class ContainmentReplayEval
 
     [Theory]
     [MemberData(nameof(Replies))]
-    public async Task The_full_provider_reaches_the_same_verdict_as_the_gate(string responseFile)
+    public async Task Provider_RecordedReply_ReachesTheSameVerdictAsTheGate(string responseFile)
     {
         // The gate tests prove the comparison; this proves the pipeline around it. Each
         // recorded reply is served through the provider's transport seam, so prompt
@@ -77,7 +77,7 @@ public sealed class ContainmentReplayEval
     }
 
     [Fact]
-    public void No_invented_rule_id_is_ever_accepted()
+    public void ContainmentGate_InventedRuleId_IsNeverAccepted()
     {
         // Stated once, over the whole corpus, rather than left implicit in the per-reply
         // expectations. This is the sentence the README makes; if it stops being true, the
@@ -105,7 +105,7 @@ public sealed class ContainmentReplayEval
     }
 
     [Fact]
-    public void Injection_attempts_are_represented_in_the_corpus()
+    public void ReplayCorpus_AsDeclared_ContainsInjectionAttempts()
     {
         // Workflow content is attacker-controlled. A corpus with no reply that obeys an
         // injected instruction has not tested the interesting half of the claim.
@@ -116,7 +116,7 @@ public sealed class ContainmentReplayEval
     }
 
     [Fact]
-    public void Every_recorded_reply_is_declared()
+    public void ReplayCorpus_RecordedReplies_AreAllDeclared()
     {
         string[] declared = [.. ReplayCorpus.Entries.Select(entry => entry.ResponseFile)];
         string[] undeclared = [.. Directory.EnumerateFiles(ResponsesDirectory, "*.json")
@@ -132,7 +132,7 @@ public sealed class ContainmentReplayEval
     }
 
     [Fact]
-    public void Write_replay_scoreboard()
+    public void ReplayCorpus_AfterReplay_WritesTheScoreboard()
     {
         List<string> lines =
         [

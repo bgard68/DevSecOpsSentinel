@@ -23,7 +23,7 @@ public sealed class PublicScanEndpointTests : IClassFixture<PublicScanEndpointTe
     public PublicScanEndpointTests(Factory factory) => _client = factory.CreateClient();
 
     [Fact]
-    public async Task Completed_scan_returns_ok_with_the_findings()
+    public async Task PublicScan_CompletedScan_ReturnsOkWithTheFindings()
     {
         HttpResponseMessage response = await _client.GetAsync("/api/public-scan/octo/app");
 
@@ -41,7 +41,7 @@ public sealed class PublicScanEndpointTests : IClassFixture<PublicScanEndpointTe
     }
 
     [Fact]
-    public async Task Missing_repository_maps_to_not_found()
+    public async Task PublicScan_MissingRepository_ReturnsNotFound()
     {
         HttpResponseMessage response = await _client.GetAsync("/api/public-scan/octo/missing");
 
@@ -49,7 +49,7 @@ public sealed class PublicScanEndpointTests : IClassFixture<PublicScanEndpointTe
     }
 
     [Fact]
-    public async Task Exhausted_quota_maps_to_service_unavailable()
+    public async Task PublicScan_ExhaustedQuota_ReturnsServiceUnavailable()
     {
         HttpResponseMessage response = await _client.GetAsync("/api/public-scan/octo/quota");
 
@@ -57,7 +57,7 @@ public sealed class PublicScanEndpointTests : IClassFixture<PublicScanEndpointTe
     }
 
     [Fact]
-    public async Task Invalid_name_maps_to_bad_request()
+    public async Task PublicScan_InvalidRepositoryName_ReturnsBadRequest()
     {
         HttpResponseMessage response = await _client.GetAsync("/api/public-scan/octo/bad");
 

@@ -42,7 +42,7 @@ public sealed class PublicScannerTests(PublicScannerApiFactory factory)
     [InlineData("/api/ai/status")]
     [InlineData("/api/health/ready")]
     [InlineData("/api/security/status")]
-    public async Task Anonymous_callers_reach_the_deterministic_surface(string path)
+    public async Task Get_AnonymousCaller_ReachesTheDeterministicSurface(string path)
     {
         HttpResponseMessage response = await Anonymous().GetAsync(path);
 
@@ -50,7 +50,7 @@ public sealed class PublicScannerTests(PublicScannerApiFactory factory)
     }
 
     [Fact]
-    public async Task Anonymous_callers_can_analyse_a_workflow()
+    public async Task Analyze_AnonymousCaller_ReturnsFindings()
     {
         HttpResponseMessage response = await Anonymous().PostAsJsonAsync(
             "/api/workflows/analyze",
@@ -67,7 +67,7 @@ public sealed class PublicScannerTests(PublicScannerApiFactory factory)
     [Theory]
     [InlineData("/api/github/status")]
     [InlineData("/api/github/repositories")]
-    public async Task Anonymous_callers_cannot_reach_github(string path)
+    public async Task GetGitHubRepositories_AnonymousCaller_ReturnsUnauthorized(string path)
     {
         // Not because the data is sensitive, but because serving it spends the
         // App's private key on behalf of someone unidentified.
@@ -77,7 +77,7 @@ public sealed class PublicScannerTests(PublicScannerApiFactory factory)
     }
 
     [Fact]
-    public async Task Anonymous_explanations_are_mock_even_though_the_server_is_configured_otherwise()
+    public async Task Explain_AnonymousCallerOnAConfiguredServer_ReturnsMockMode()
     {
         // The deployment is configured Live. This is the whole point of the
         // mode: an unidentified caller cannot cause an outbound request, so
@@ -99,7 +99,7 @@ public sealed class PublicScannerTests(PublicScannerApiFactory factory)
     }
 
     [Fact]
-    public async Task Identified_callers_get_the_configured_provider()
+    public async Task Explain_IdentifiedCaller_ReturnsTheConfiguredProviderMode()
     {
         HttpResponseMessage response = await WithKey().PostAsJsonAsync(
             "/api/workflows/explain",
@@ -115,7 +115,7 @@ public sealed class PublicScannerTests(PublicScannerApiFactory factory)
     }
 
     [Fact]
-    public async Task The_status_endpoint_says_a_key_is_not_needed_to_enter()
+    public async Task GetAiStatus_PublicMode_ReportsThatNoKeyIsNeededToEnter()
     {
         // The client renders its access gate from this. Reporting `required` in
         // Public mode would put a wall in front of a scanner that has nothing
@@ -133,7 +133,7 @@ public sealed class PublicScannerTests(PublicScannerApiFactory factory)
     }
 
     [Fact]
-    public async Task An_invalid_key_does_not_promote_a_caller()
+    public async Task Explain_InvalidApiKey_DoesNotPromoteTheCallerToConfigured()
     {
         HttpClient client = factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-API-Key", new string('x', 48));
@@ -151,7 +151,7 @@ public sealed class PublicScannerTests(PublicScannerApiFactory factory)
     }
 
     [Fact]
-    public async Task An_invalid_key_is_still_refused_at_a_privileged_endpoint()
+    public async Task GetGitHubRepositories_InvalidApiKey_ReturnsUnauthorized()
     {
         HttpClient client = factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-API-Key", new string('x', 48));

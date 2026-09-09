@@ -57,7 +57,7 @@ public sealed class WorkflowExplanationServiceTests
     private static WorkflowDocument Document() => new("wf.yml", "name: x\non:\n  push:\n");
 
     [Fact]
-    public async Task Invalid_yaml_never_reaches_a_provider()
+    public async Task ExplainAsync_InvalidYaml_NeverReachesAProvider()
     {
         RecordingProvider provider = new("Live");
         RecordingSelector selector = new(provider);
@@ -73,7 +73,7 @@ public sealed class WorkflowExplanationServiceTests
     }
 
     [Fact]
-    public async Task Unrequested_ai_never_reaches_a_provider()
+    public async Task ExplainAsync_AiNotRequested_NeverReachesAProvider()
     {
         RecordingProvider provider = new("Live");
         RecordingSelector selector = new(provider);
@@ -90,7 +90,7 @@ public sealed class WorkflowExplanationServiceTests
     [Theory]
     [InlineData(AiCallerAccess.MockOnly)]
     [InlineData(AiCallerAccess.Configured)]
-    public async Task The_callers_access_level_is_what_reaches_the_selector(AiCallerAccess access)
+    public async Task ExplainAsync_CallerAccessLevel_IsWhatReachesTheSelector(AiCallerAccess access)
     {
         // The selector is where "anonymous callers cannot spend" is decided, so the
         // access value must arrive exactly as the endpoint stated it.
@@ -108,7 +108,7 @@ public sealed class WorkflowExplanationServiceTests
     }
 
     [Fact]
-    public async Task Redaction_flag_travels_from_the_sanitizer_to_the_result()
+    public async Task ExplainAsync_SanitizerRedacted_SetsTheRedactionFlagOnTheResult()
     {
         var service = new WorkflowExplanationService(
             new FakeAnalysis(Valid()),
@@ -127,7 +127,7 @@ public sealed class WorkflowExplanationServiceTests
     }
 
     [Fact]
-    public void The_fallback_carries_every_deterministic_finding()
+    public void ExplainAsync_FallbackPath_CarriesEveryDeterministicFinding()
     {
         WorkflowAnalysisResult analysis = new(
             "wf.yml", IsValid: true, [],

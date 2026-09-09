@@ -60,7 +60,7 @@ public sealed class GitHubInstallationTokenProviderTests : IDisposable
             new GitHubPrivateKeySource(options));
 
     [Fact]
-    public async Task Exchanges_a_signed_app_jwt_for_the_installation_token()
+    public async Task GetTokenAsync_ConfiguredApp_ExchangesASignedJwtForTheInstallationToken()
     {
         GitHubOptions options = Options();
         FakeHttp http = new(_ => TokenResponse("inst-token", DateTimeOffset.UtcNow.AddMinutes(50)));
@@ -76,7 +76,7 @@ public sealed class GitHubInstallationTokenProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task A_fresh_token_is_served_from_cache_without_a_second_exchange()
+    public async Task GetTokenAsync_FreshCachedToken_IsServedWithoutASecondExchange()
     {
         GitHubOptions options = Options();
         FakeHttp http = new(_ => TokenResponse("inst-token", DateTimeOffset.UtcNow.AddMinutes(50)));
@@ -90,7 +90,7 @@ public sealed class GitHubInstallationTokenProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task A_nearly_expired_token_is_exchanged_again()
+    public async Task GetTokenAsync_NearlyExpiredToken_IsExchangedAgain()
     {
         GitHubOptions options = Options();
         int calls = 0;
@@ -107,7 +107,7 @@ public sealed class GitHubInstallationTokenProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task Unconfigured_options_are_refused_before_any_request()
+    public async Task GetTokenAsync_UnconfiguredOptions_AreRefusedBeforeAnyRequest()
     {
         FakeHttp http = new(_ => throw new InvalidOperationException("must not be called"));
         var options = new GitHubOptions();
@@ -121,7 +121,7 @@ public sealed class GitHubInstallationTokenProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task A_github_error_carries_no_token_and_says_so()
+    public async Task GetTokenAsync_GitHubError_CarriesNoTokenAndSaysSo()
     {
         GitHubOptions options = Options();
         FakeHttp http = new(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized));
@@ -131,7 +131,7 @@ public sealed class GitHubInstallationTokenProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task A_success_without_a_token_in_the_body_is_rejected()
+    public async Task GetTokenAsync_SuccessWithoutATokenInTheBody_IsRejected()
     {
         GitHubOptions options = Options();
         FakeHttp http = new(_ => new HttpResponseMessage(HttpStatusCode.Created)

@@ -228,14 +228,15 @@ public sealed class WorkflowStructureTests
     [InlineData("PUSH", true)]
     [InlineData("PuSh", true)]
     [InlineData("schedule", false)]
-    [InlineData("", true)]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
     public void HasTrigger_TriggerListContainsPush_MatchesCaseInsensitively(
         string probe,
         bool expected)
     {
-        // Arrange. The empty probe is included deliberately: Contains("") holds
-        // for every string, so a rule that passes an unset option matches
-        // everything rather than failing closed.
+        // Arrange. The empty and whitespace probes are included deliberately:
+        // Contains("") holds for every string, so an unset rule option has to be
+        // rejected by HasTrigger rather than matching every workflow scanned.
         WorkflowStructure structure = new(["push", "workflow_dispatch"], [], []);
 
         // Act
