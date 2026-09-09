@@ -29,7 +29,7 @@ public sealed class WorkflowSuppressionTests
         new(ruleId, WorkflowSeverity.High, "t", "d", line, "r", false);
 
     [Fact]
-    public void An_acceptance_above_a_line_is_about_that_line()
+    public void Parse_AcceptanceAboveALine_AppliesToThatLine()
     {
         WorkflowSuppressions suppressions = Read(
             "name: Prune",
@@ -53,7 +53,7 @@ public sealed class WorkflowSuppressionTests
     }
 
     [Fact]
-    public void A_trailing_acceptance_is_about_its_own_line()
+    public void Parse_TrailingAcceptance_AppliesToItsOwnLine()
     {
         WorkflowSuppressions suppressions = Read(
             "name: Prune",
@@ -72,7 +72,7 @@ public sealed class WorkflowSuppressionTests
     }
 
     [Fact]
-    public void An_acceptance_without_a_reason_is_refused()
+    public void Parse_AcceptanceWithoutAReason_IsRefused()
     {
         // The whole value is forcing the thinking to be written down. A bare
         // marker records that someone wanted the finding gone, not that anyone
@@ -95,7 +95,7 @@ public sealed class WorkflowSuppressionTests
     }
 
     [Fact]
-    public void An_acceptance_covers_one_line_not_the_whole_file()
+    public void Parse_Acceptance_CoversOneLineNotTheWholeFile()
     {
         WorkflowSuppressions suppressions = Read(
             "name: Two",
@@ -122,7 +122,7 @@ public sealed class WorkflowSuppressionTests
     }
 
     [Fact]
-    public void An_acceptance_covers_only_the_rule_it_names()
+    public void Parse_Acceptance_CoversOnlyTheRuleItNames()
     {
         WorkflowSuppressions suppressions = Read(
             "name: One",
@@ -141,7 +141,7 @@ public sealed class WorkflowSuppressionTests
     }
 
     [Fact]
-    public void An_acceptance_that_outlived_its_finding_is_reported()
+    public void Analyze_AcceptanceThatOutlivedItsFinding_IsReportedAsStale()
     {
         WorkflowSuppressions suppressions = Read(
             "name: Fixed",
@@ -163,7 +163,7 @@ public sealed class WorkflowSuppressionTests
     }
 
     [Fact]
-    public void An_acceptance_that_still_matches_is_not_stale()
+    public void Analyze_AcceptanceThatStillMatchesAFinding_IsNotReportedAsStale()
     {
         WorkflowSuppressions suppressions = Read(
             "name: Live",
@@ -181,7 +181,7 @@ public sealed class WorkflowSuppressionTests
     }
 
     [Fact]
-    public void An_unrelated_comment_is_not_a_directive()
+    public void Parse_UnrelatedComment_IsNotTreatedAsADirective()
     {
         WorkflowSuppressions suppressions = Read(
             "name: Plain",
