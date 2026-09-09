@@ -159,14 +159,26 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
     [Fact]
     public async Task Html_export_carries_severity_and_escapes_content()
     {
+        // The file name reaches the document heading, so it carries the markup
+        // here. Asserting against a workflow that contains no markup at all
+        // passes whether or not the encoder is ever called: that version of this
+        // test survived deleting the Encode call from the title cell.
         HttpResponseMessage response = await _client.PostAsJsonAsync(
             "/api/workflows/remediation/export/html",
-            new { fileName = "build.yml", content = VulnerableWorkflow });
+            new
+            {
+                fileName = "<script>alert(1)</script>.yml",
+                content = VulnerableWorkflow
+            });
 
         string body = await response.Content.ReadAsStringAsync();
 
         Assert.Contains("<th>Severity</th>", body, StringComparison.Ordinal);
         Assert.Contains("GHA002", body, StringComparison.Ordinal);
+        Assert.Contains(
+            "<h2>&lt;script&gt;alert(1)&lt;/script&gt;.yml</h2>",
+            body,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("<script>", body, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -425,12 +437,17 @@ public sealed class ApiEndpointTests(ApiFactory factory) : IClassFixture<ApiFact
         request.Headers.Add("X-Correlation-ID", "phase-f-test");
         HttpResponseMessage response = await _client.SendAsync(request);
 
+        // Values, not presence. Checking only that the header exists let
+        // X-Frame-Options be relaxed from DENY to SAMEORIGIN without failing.
+        // SecurityHeaderTests covers the full set and the per-route CSP.
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(response.Headers.TryGetValues("X-Correlation-ID", out var correlationValues));
         Assert.Contains("phase-f-test", correlationValues!);
-        Assert.True(response.Headers.Contains("X-Content-Type-Options"));
-        Assert.True(response.Headers.Contains("X-Frame-Options"));
-        Assert.True(response.Headers.Contains("Content-Security-Policy"));
+        Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
+        Assert.Equal("DENY", Assert.Single(response.Headers.GetValues("X-Frame-Options")));
+        Assert.Equal(
+            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+            Assert.Single(response.Headers.GetValues("Content-Security-Policy")));
     }
 
     private sealed record AiStatusResponse(
