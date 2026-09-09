@@ -20,6 +20,16 @@
   examined from the rule never having looked. They are not findings because the
   client reads any finding as action required, and a correct workflow must not
   be pushed into that state by the check that cleared it.
+- Tests for the ten types that had none: `WorkflowStructure`,
+  `YamlWorkflowStructureReader`, `RemediationExports`, `ApiSecurityOptions`,
+  `CallerAuthentication`, `ApiExceptionHandler`, `RequestTelemetryMiddleware`,
+  `DynamicCorsPolicyProvider`, the mock and disabled AI providers, and the
+  provider selector. The reader's tests assert exact source line numbers, and
+  cover anchors and aliases, flow style, the YAML 1.1 resolution of `on` to the
+  boolean `true`, and eight degenerate documents. The export tests are driven
+  from hand-built reports so that every severity, a null line number and a
+  change list shorter than the finding list are all reachable — combinations a
+  real workflow cannot be made to produce on demand.
 
 ### Changed
 
@@ -42,6 +52,29 @@
   stricter standard than the tool applies to anyone else's. Its exemption table
   is now empty: two entries are recognised by the rule itself, and the third is
   stated in `prune-runs.yml`.
+- One test naming convention across the suite. The 206 tests written before this
+  change read as sentences and the rest used
+  `Subject_Condition_Expected`; mixed, neither is a convention. Renames only, no
+  test body or assertion altered.
+
+### Fixed
+
+- The problem document written when `IProblemDetailsService` declines is served
+  as `application/problem+json`. The content type was assigned and then
+  discarded by `WriteAsJsonAsync`, whose shorter overload sets it to
+  `application/json`, so that path returned an RFC 7807 body under a media type
+  no RFC 7807 client recognises.
+- `WorkflowStructure.HasTrigger` rejects an empty or whitespace name.
+  `Contains("")` is true for every string, so a rule passing an unset option
+  would have matched every workflow rather than none — failing open in the
+  component that decides which workflows a rule applies to. Latent rather than
+  live: both call sites pass literals.
+- Two assertions that could not fail. The HTML export test looked for a script
+  tag in a document whose workflow, findings and diff contained no markup, and
+  passed with the encoder deleted; it now carries markup in the file name. The
+  security header test checked header names and never values, and passed with
+  `X-Frame-Options` relaxed from `DENY` to `SAMEORIGIN`; it now asserts values,
+  and both branches of the path-dependent CSP are covered.
 
 ## 1.4.0 — 2026-08-05
 

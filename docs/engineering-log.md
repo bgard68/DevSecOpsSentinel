@@ -863,3 +863,170 @@ acceptance of its own that is stale or unexplained.
 
 A standing exception is a defect report. A list of them that keeps growing is
 describing something the rule should know.
+
+---
+
+## 27. Two assertions that could not fail
+
+**What was wrong.** Two tests named for the property they checked did not check
+it.
+
+`Html_export_carries_severity_and_escapes_content` asserted that the rendered
+report did not contain `<script>`. The workflow it posted contained no markup,
+its findings carried static rule text, and the diff was three lines of YAML — so
+there was nothing in the document to escape. Deleting the `Encode` call from the
+title cell left the test green.
+
+The security header test asserted `response.Headers.Contains("X-Frame-Options")`.
+It checked the name and never the value, so relaxing the header from `DENY` to
+`SAMEORIGIN` left it green, as would `ALLOWALL`. The same test checked
+`Content-Security-Policy` the same way, and that policy is built by a branch on
+the request path which nothing exercised at all.
+
+**How it was found.** By mutation. Both were rewritten during a coverage pass,
+and the rewrite was checked by breaking the source on purpose — removing the
+encoder, relaxing the header — to confirm the new assertions failed. The old
+ones were run against the same mutants and passed.
+
+**Why nothing caught it.** Nothing was looking. Both tests predate the Patterns
+section of this log, which records *a test that cannot fail proves nothing* —
+and writing that sentence did not cause anyone to go back through the suite that
+already existed. The lesson was recorded forwards and never applied backwards.
+
+The escaping test is the more instructive of the two, because what made it
+vacuous was the fixture rather than the assertion.
+`Assert.DoesNotContain("<script>")` is a reasonable line to write. Against input
+that could never produce a script tag it asserts nothing, and on review it reads
+as though it does.
+
+**What changed.** The escaping test posts a file name containing markup, which
+reaches the document heading, and asserts the encoded form is present as well as
+the raw form absent. The header test asserts every value exactly. Both CSP
+branches are covered, including a route that merely prefix-matches `/scalar` and
+must not inherit the CDN allowance.
+
+**What prevents recurrence.** A negative assertion needs a fixture that would
+produce the thing being denied. `DoesNotContain` over input that cannot contain
+it is a comment, not a test.
+
+Mutation is now the acceptance criterion for new coverage here, not review.
+Twenty-eight mutants were applied across the changed surface and all twenty-eight
+failed a test. The two above are in this log because they were the mutants that
+did *not* fail one, and no amount of reading had shown that.
+
+---
+
+## 28. The fallback problem document was not served as a problem document
+
+**What was wrong.** `ApiExceptionHandler` sets the response content type to
+`application/problem+json`, then writes the body with
+`WriteAsJsonAsync(problem, cancellationToken)`. That overload sets the content
+type itself, to `application/json; charset=utf-8`, discarding the assignment two
+lines above it. The response carried an RFC 7807 document under a media type no
+RFC 7807 client recognises.
+
+It affected only the fallback path — the branch that runs when
+`IProblemDetailsService` declines to write — which is why the product never
+showed it. The framework's own writer normally succeeds and sets the type
+correctly.
+
+**How it was found.** By writing the first direct unit test of the handler and
+asserting the content type on the branch where the service declines.
+
+**Why nothing caught it.** No test reached that branch. Reaching it requires the
+problem-details service to return `false`, which does not happen through the HTTP
+pipeline, so every existing test exercised the path where the framework writes
+and the defect is invisible. The code also reads as correct: the assignment is
+there, immediately above the call that undoes it.
+
+**What changed.** The content type is passed to the overload that accepts it,
+rather than assigned beforehand.
+
+**What prevents recurrence.** When a framework call writes the same state you
+have just set, setting it beforehand is not belt and braces. It is a line that
+does nothing, and it looks like the line that makes the code correct.
+
+A branch that executes only when a dependency declines needs a test double that
+declines. Both branches of this handler are now covered, including an assertion
+that the successful path does *not* write a second body.
+
+---
+
+## 29. A trigger match that answered to the empty string
+
+**What was wrong.** `WorkflowStructure.HasTrigger` tested whether any declared
+trigger contained the name it was given. `string.Contains("")` is true for every
+string, so an empty or whitespace probe matched every workflow ever scanned.
+
+A rule reading an unset option and passing it here would have reported on
+everything rather than nothing — failing open, in the component whose whole
+purpose is deciding which workflows a rule applies to.
+
+Nothing did that. Both call sites pass literals, so this was latent rather than
+live.
+
+**How it was found.** By writing the first unit tests for `WorkflowStructure` and
+including the empty probe as a boundary case. It returned true.
+
+**Why nothing caught it.** The type had no tests. It was exercised only through
+rules that pass constants, so no input ever reached it that could expose the
+behaviour.
+
+**What changed.** `HasTrigger` rejects an empty or whitespace name before testing
+any trigger.
+
+**What prevents recurrence.** A predicate taking a caller-supplied needle needs a
+test for the empty needle. `Contains`, `StartsWith` and `EndsWith` are all true
+for `""`, so any of them reached with an unset value fails open, and the default
+that looks like "no filter" is the one that matches everything.
+
+The neighbouring subtlety is pinned rather than changed: because the match is on
+substring, `pull_request` also matches `pull_request_target`. A rule meaning the
+safe trigger and asking for the prefix gets both. That is now a test with a
+comment saying so, so it stays a decision rather than a surprise.
+
+---
+
+## 30. The verification harness reverted the fix it was verifying
+
+**What was wrong.** Mutation runs were scripted as: edit the source with `sed`,
+run the affected tests, then `git checkout -- <file>` to restore it.
+
+`git checkout --` restores from HEAD, not from the working tree the run started
+in. The `HasTrigger` guard above had been written but not yet committed, so the
+restore discarded it. The commit that followed carried the test asserting the
+closed behaviour and not the source change that closes it, and it was merged
+without the suite being run again.
+
+The result was a commit that was internally contradictory and demonstrably broken
+— one failing test — sitting on `main`.
+
+**How it was found.** By rebasing onto the remote, which had moved on fifteen
+commits, and running the suite against the merged result. The failure was the
+author's own test.
+
+**Why nothing caught it.** The full suite had been green *before* the mutation
+run and was never run after it. The script's job was to leave the tree as it
+found it, and it reported nothing when it failed to, because restoring a file to
+HEAD is a successful `git checkout` whatever the working tree held.
+
+This happened twice from the same cause. The first time the reverted fix was
+noticed within the session; the second time it was not.
+
+A smaller instance of the same class: a mutation filter naming a test that had
+just been renamed matched zero tests. `dotnet test` reports no failure for a
+filter that selects nothing, and "no test failed" reads identically whether the
+mutant survived or nothing ran.
+
+**What changed.** Fixes are committed before anything mutates the file they live
+in, so the restore is to a state that contains them. The harness asserts a
+non-zero test count, so a filter selecting nothing is an error rather than a
+result. The full suite runs after a mutation session, not only before it.
+
+**What prevents recurrence.** A tool that restores state must restore the state
+the run started in. `git checkout --` restores committed state, and the
+difference is invisible until the two differ.
+
+More generally: the verification step is code, and it is the one piece of code
+that nothing else verifies. A harness able to silently discard the work it is
+checking is worse than no harness, because its output is trusted.
