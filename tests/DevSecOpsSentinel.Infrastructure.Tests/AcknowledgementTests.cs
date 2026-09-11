@@ -119,12 +119,10 @@ public sealed class AcknowledgementTests
     public static TheoryData<string> RulesThatAcknowledgeNothing()
     {
         TheoryData<string> data = [];
-        foreach (IWorkflowSecurityRule rule in RuleCatalogue.All())
+        foreach (IWorkflowSecurityRule rule in RuleCatalogue.All()
+            .Where(rule => rule is not (ExcessivePermissionsRule or PersistedCredentialsRule)))
         {
-            if (rule is not (ExcessivePermissionsRule or PersistedCredentialsRule))
-            {
-                data.Add(rule.RuleId);
-            }
+            data.Add(rule.RuleId);
         }
 
         return data;
