@@ -14,14 +14,20 @@ name: Dependabot auto-merge
 
 on: pull_request
 
+# Read-only by default; the one job that needs it grants itself the minimum below.
 permissions:
-  contents: write        # enable auto-merge on the PR
-  pull-requests: write   # required by gh pr merge
+  contents: read
 
 jobs:
   auto-merge:
     if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Scoped to the job, not the workflow: enabling auto-merge is a pull-request
+    # write, and the merge itself is performed later by GitHub, so nothing here
+    # needs contents: write (least privilege — GHA002/GHA003).
+    permissions:
+      pull-requests: write
     steps:
       - name: Fetch Dependabot metadata
         id: meta
