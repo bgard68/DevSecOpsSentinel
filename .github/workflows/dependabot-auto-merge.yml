@@ -24,13 +24,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # Scoped to the job, not the workflow, so the workflow default stays read-only.
-    #
-    # contents: write is required, not optional: `gh pr merge --auto` calls the
-    # enablePullRequestAutoMerge mutation, which GitHub gates on contents: write
-    # even though GitHub performs the merge itself later. Dropping it on
-    # least-privilege grounds (GHA002/GHA003) made this job fail on every
-    # Dependabot PR with "Resource not accessible by integration".
     permissions:
+      # sentinel:accept GHA002 - `gh pr merge --auto` calls enablePullRequestAutoMerge,
+      # which GitHub gates on contents: write even though GitHub performs the merge
+      # itself later; with pull-requests: write alone the step fails with "Resource not
+      # accessible by integration" and no Dependabot PR ever merges. GHA002 is right
+      # that no action in this job requires the grant — the requirement lives in a gh
+      # call inside a run step, which the rule cannot see. The cost is stated rather
+      # than waved away: this token could push to any branch, so the job checks nothing
+      # out, runs no repository code, and reads no secret beyond GITHUB_TOKEN.
       contents: write
       pull-requests: write
     steps:
