@@ -20,7 +20,11 @@ permissions:
 
 jobs:
   auto-merge:
-    if: github.actor == 'dependabot[bot]'
+    # The PR's author, not github.actor. github.actor is whoever caused this event,
+    # so any workflow that pushes to a Dependabot branch makes the following
+    # synchronize run skip this job, and auto-merge is never enabled for exactly the
+    # PRs that needed the extra push.
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # Scoped to the job, not the workflow, so the workflow default stays read-only.
