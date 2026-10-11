@@ -6,7 +6,9 @@ centre and depend on nothing.
 
 For what happens on a single request, see
 [program-flow.md](program-flow.md). For the rules themselves, see
-[rules.md](rules.md).
+[rules.md](rules.md). For how the model is kept from inventing or suppressing a
+finding — the enforcement behind ADR-003 — see
+[ai-containment.md](ai-containment.md).
 
 ```mermaid
 flowchart TB

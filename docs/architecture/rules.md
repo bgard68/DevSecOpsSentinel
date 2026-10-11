@@ -187,13 +187,34 @@ ways that are hard to see. See
 
 ## Adding a rule
 
-1. Implement `IWorkflowSecurityRule` in `Infrastructure/Rules`.
-2. Register it in `Program.cs`.
-3. Add it to `CreateRules()` in the infrastructure tests.
-4. Write tests for the positive case, the negative case, **and the near-miss** —
+1. Implement `IWorkflowSecurityRule` in `Infrastructure/Rules`, taking the next
+   free id — which is **GHA013**, not GHA012. `GHA012` is already issued by
+   `WorkflowAnalysisService` for a stale acceptance comment, so reflection over
+   `Rules/` will not show it as taken.
+2. Add it to `CreateRules()` in `SecurityRuleTests`.
+3. Write tests for the positive case, the negative case, **and the near-miss** —
    the workflow that looks like a violation and is not.
-5. Add a bundled scenario if it should be demonstrable in the application.
+4. Add a bundled scenario if it should be demonstrable in the application.
 
 The near-miss test is the one that matters. Precision is what makes a
 deterministic analyser worth trusting, and every false positive spends that
 trust.
+
+There is deliberately **no step registering the rule in `Program.cs`**.
+`RuleDiscovery` finds every `IWorkflowSecurityRule` in the assembly by
+reflection and the composition root loops over that. It used to be a manual
+step, and the reason it is not any more is recorded on `RuleDiscovery` itself:
+the list was spelled out three times — composition root, tests, eval — and a
+rule added to two of them would simply never run in the third, with nothing to
+say so. A hand-maintained registry is the one thing certain to drift, because
+forgetting it produces no error, only silence.
+
+`CreateRules()` in step 2 is the one hand-maintained list remaining. It is in
+sync today, eleven of eleven, and it is therefore the only place this can still
+drift — so it is worth asking whether a new rule needs listing there at all, or
+whether that fixture should delegate to `RuleDiscovery.All()` the way
+`RuleCatalogue` already does.
+
+How the rules relate to the AI explanation layer — and why a rule id is
+effectively a public API that cannot be renumbered — is in
+[ai-containment.md](ai-containment.md).

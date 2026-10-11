@@ -16,6 +16,7 @@
 | [architecture/program-flow.md](architecture/program-flow.md) | What happens on a request, backend and frontend |
 | [architecture/rules.md](architecture/rules.md) | The eleven detection rules, and how to add one |
 | [accepting-findings.md](accepting-findings.md) | Stating that a finding is acceptable, and why it cannot rot |
+| [architecture/ai-containment.md](architecture/ai-containment.md) | How the model is prevented from inventing or suppressing a finding, and what that does not cover |
 
 ## Engineering
 
