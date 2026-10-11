@@ -1,0 +1,76 @@
+name: Dependabot auto-merge
+
+# Turns on GitHub's native auto-merge for Dependabot pull requests, so a PR whose
+# every required status check passes merges itself instead of waiting for a human.
+# Branch protection still fully gates the merge — nothing red lands, and required
+# checks/reviews are still enforced.
+#
+# Scope: minor and patch updates only. Major bumps are left open for a human to read
+# the changelog first. Uses only the automatic GITHUB_TOKEN — no PAT or extra secrets.
+# Requires "Allow auto-merge" in Settings > General (enabled for this repo).
+#
+# dependabot/fetch-metadata is SHA-pinned and listed in .github/allowed-actions.txt
+# plus the repository's selected-actions setting, as this repo's allowlist requires.
+
+on: pull_request
+
+# Read-only by default; the one job that needs it grants itself the minimum below.
+permissions:
+  contents: read
+
+jobs:
+  auto-merge:
+    # The PR's author, not github.actor. github.actor is whoever caused this event,
+    # so any workflow that pushes to a Dependabot branch makes the following
+    # synchronize run skip this job, and auto-merge is never enabled for exactly the
+    # PRs that needed the extra push.
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Scoped to the job, not the workflow, so the workflow default stays read-only.
+    permissions:
+      # sentinel:accept GHA002 - `gh pr merge --auto` calls enablePullRequestAutoMerge,
+      # which GitHub gates on contents: write even though GitHub performs the merge
+      # itself later; with pull-requests: write alone the step fails with "Resource not
+      # accessible by integration" and no Dependabot PR ever merges. GHA002 is right
+      # that no action in this job requires the grant — the requirement lives in a gh
+      # call inside a run step, which the rule cannot see. The cost is stated rather
+      # than waved away: this token could push to any branch, so the job checks nothing
+      # out, runs no repository code, and reads no secret beyond GITHUB_TOKEN.
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+
+      - name: Enable auto-merge for non-major updates
+        if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        run: |
+          # GitHub refuses enablePullRequestAutoMerge while the pull request is momentarily
+          # UNSTABLE (other checks still settling) — and this job runs on `opened`, which is
+          # exactly that moment. Failing here made THIS job the red check that kept the PR
+          # unstable, a deadlock that stopped WidgetWorks #133 merging even though every real
+          # check passed.
+          #
+          # So: retry, and never fail the job. Arming auto-merge is all this step does; branch
+          # protection still decides what actually merges, and a warning stays visible without
+          # poisoning the pull request's status.
+          for attempt in 1 2 3 4 5; do
+            if out=$(gh pr merge --auto --squash "$PR_URL" 2>&1); then
+              echo "Auto-merge enabled."
+              exit 0
+            fi
+            case "$out" in
+              *"already enabled"*|*"Auto-merge is already enabled"*)
+                echo "Auto-merge already enabled."
+                exit 0
+                ;;
+            esac
+            echo "Attempt $attempt did not take: $out"
+            sleep 15
+          done
+          echo "::warning title=Auto-merge not armed::$out"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

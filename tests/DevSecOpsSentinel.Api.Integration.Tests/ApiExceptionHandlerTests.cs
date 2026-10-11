@@ -172,7 +172,8 @@ public sealed class ApiExceptionHandlerTests
 
         // Assert
         context.Response.Body.Seek(0, SeekOrigin.Begin);
-        string body = await new StreamReader(context.Response.Body, Encoding.UTF8).ReadToEndAsync();
+        using StreamReader reader = new(context.Response.Body, Encoding.UTF8);
+        string body = await reader.ReadToEndAsync();
 
         using JsonDocument document = JsonDocument.Parse(body);
 
