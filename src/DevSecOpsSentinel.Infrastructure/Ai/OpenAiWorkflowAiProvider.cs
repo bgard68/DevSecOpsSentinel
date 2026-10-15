@@ -80,7 +80,10 @@ public sealed class OpenAiWorkflowAiProvider : IWorkflowAiProvider
         try
         {
             using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(_options.TimeoutSeconds, 5, 120)));
+            timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(
+                _options.TimeoutSeconds,
+                OpenAiOptions.MinimumTimeoutSeconds,
+                OpenAiOptions.MaximumTimeoutSeconds)));
 
             string context = sanitizedContent.Length <= _options.MaximumContextCharacters
                 ? sanitizedContent

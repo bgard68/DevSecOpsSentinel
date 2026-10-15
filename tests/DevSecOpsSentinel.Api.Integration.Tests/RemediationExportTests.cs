@@ -39,8 +39,10 @@ public sealed class RemediationExportTests
                 finding.RuleId,
                 finding.Title,
                 finding.Severity,
-                flags[index],
-                finding.Recommendation))];
+                finding.LineNumber,
+                finding.Description,
+                finding.Recommendation,
+                flags[index]))];
 
         return new RemediationReport(
             fileName,
@@ -131,23 +133,22 @@ public sealed class RemediationExportTests
     }
 
     [Fact]
-    public void Markdown_ChangeListIsShorterThanTheFindingList_ReportsTheExtraFindingAsUnresolved()
+    public void Markdown_ResolvedAndUnresolvedFindings_AreReportedAsSuch()
     {
-        // Arrange. Detail() pairs findings to changes by index and guards the
-        // upper bound. If the two ever drift apart, the unmatched finding has to
-        // read as still present: claiming a fix that was never applied is the
-        // one failure mode this export cannot have.
+        // Claiming a fix that was never applied is the one failure mode this export cannot
+        // have, so the unresolved row is asserted beside the resolved one.
+        //
+        // This replaces a test that pinned the previous behaviour of pairing findings to
+        // changes by index and guarding the upper bound. The export now reads the change
+        // list directly, and RemediationReportServiceTests holds the invariant that the
+        // list carries exactly one change per finding, in order — so the drift that test
+        // defended against is unrepresentable rather than merely handled.
         WorkflowFinding matched = Finding("GHA002", WorkflowSeverity.High, 4, "Matched");
         WorkflowFinding unmatched = Finding("GHA003", WorkflowSeverity.Medium, 7, "Unmatched");
 
-        RemediationReport truncated = Report([matched], resolved: [true]) with
-        {
-            OriginalAnalysis = new WorkflowAnalysisResult(
-                "build.yml", true, [], [matched, unmatched], null)
-        };
-
         // Act
-        string markdown = RemediationExports.Markdown(truncated);
+        string markdown = RemediationExports.Markdown(
+            Report([matched, unmatched], resolved: [true, false]));
 
         // Assert
         Assert.Contains(

@@ -8,16 +8,18 @@ namespace DevSecOpsSentinel.Api;
 internal static class RemediationExports
 {
     /// <summary>
-    /// Pairs each original finding with whether the proposed patch resolved it.
-    /// RemediationReportService builds Changes by projecting over the original
-    /// findings, so the two lists are index-aligned.
+    /// Every finding and its outcome, read straight from the report.
+    ///
+    /// This used to pair <c>OriginalAnalysis.Findings</c> against <c>Changes</c> by index,
+    /// on the strength of a comment asserting that the service builds one by projecting over
+    /// the other. Nothing enforced that, and the failure would have been silent: a filtered
+    /// or reordered change list would have printed each finding beside another finding's
+    /// outcome, in the document this tool exists to produce as evidence.
+    ///
+    /// A change now carries the finding's line and description, so there is nothing to pair.
     /// </summary>
-    private static IEnumerable<(WorkflowFinding Finding, bool Resolved)> Detail(
-        RemediationReport report) =>
-        report.OriginalAnalysis.Findings
-            .Select((finding, index) => (
-                finding,
-                index < report.Changes.Count && report.Changes[index].Resolved));
+    private static IReadOnlyList<RemediationChange> Detail(RemediationReport report) =>
+        report.Changes;
 
     public static string Markdown(RemediationReport report)
     {
@@ -45,37 +47,37 @@ internal static class RemediationExports
             text.AppendLine("| Rule | Severity | Line | Status | Finding |");
             text.AppendLine("| --- | --- | --- | --- | --- |");
 
-            foreach ((WorkflowFinding finding, bool resolved) in Detail(report))
+            foreach (RemediationChange change in Detail(report))
             {
                 text.AppendLine(
-                    $"| {finding.RuleId} " +
-                    $"| {finding.Severity} " +
-                    $"| {(finding.LineNumber?.ToString() ?? "—")} " +
-                    $"| {(resolved ? "Resolved" : "Still present")} " +
-                    $"| {finding.Title} |");
+                    $"| {change.RuleId} " +
+                    $"| {change.Severity} " +
+                    $"| {(change.LineNumber?.ToString() ?? "—")} " +
+                    $"| {(change.Resolved ? "Resolved" : "Still present")} " +
+                    $"| {change.Title} |");
             }
 
             text.AppendLine();
             text.AppendLine("### Detail");
             text.AppendLine();
 
-            foreach ((WorkflowFinding finding, bool resolved) in Detail(report))
+            foreach (RemediationChange change in Detail(report))
             {
                 text.AppendLine(
-                    $"#### {finding.RuleId} — {finding.Title} ({finding.Severity})");
+                    $"#### {change.RuleId} — {change.Title} ({change.Severity})");
                 text.AppendLine();
 
-                if (finding.LineNumber is not null)
+                if (change.LineNumber is not null)
                 {
-                    text.AppendLine($"Line {finding.LineNumber}.");
+                    text.AppendLine($"Line {change.LineNumber}.");
                     text.AppendLine();
                 }
 
-                text.AppendLine(finding.Description);
+                text.AppendLine(change.Description);
                 text.AppendLine();
-                text.AppendLine($"**Recommended remediation.** {finding.Recommendation}");
+                text.AppendLine($"**Recommended remediation.** {change.Recommendation}");
                 text.AppendLine();
-                text.AppendLine($"**Status.** {(resolved ? "Resolved by the proposed patch." : "Still present after the proposed patch.")}");
+                text.AppendLine($"**Status.** {(change.Resolved ? "Resolved by the proposed patch." : "Still present after the proposed patch.")}");
                 text.AppendLine();
             }
         }
@@ -89,15 +91,15 @@ internal static class RemediationExports
 
     public static string Html(RemediationReport report)
     {
-        string rows = string.Join("", Detail(report).Select(item =>
-            $"<tr class=\"severity-{Encode(item.Finding.Severity.ToString().ToLowerInvariant())}\">" +
-            $"<td><code>{Encode(item.Finding.RuleId)}</code></td>" +
-            $"<td>{Encode(item.Finding.Severity.ToString())}</td>" +
-            $"<td>{(item.Finding.LineNumber?.ToString() ?? "&mdash;")}</td>" +
-            $"<td>{(item.Resolved ? "Resolved" : "Still present")}</td>" +
-            $"<td><strong>{Encode(item.Finding.Title)}</strong>" +
-            $"<p>{Encode(item.Finding.Description)}</p>" +
-            $"<p class=\"recommendation\">{Encode(item.Finding.Recommendation)}</p></td>" +
+        string rows = string.Join("", Detail(report).Select(change =>
+            $"<tr class=\"severity-{Encode(change.Severity.ToString().ToLowerInvariant())}\">" +
+            $"<td><code>{Encode(change.RuleId)}</code></td>" +
+            $"<td>{Encode(change.Severity.ToString())}</td>" +
+            $"<td>{(change.LineNumber?.ToString() ?? "&mdash;")}</td>" +
+            $"<td>{(change.Resolved ? "Resolved" : "Still present")}</td>" +
+            $"<td><strong>{Encode(change.Title)}</strong>" +
+            $"<p>{Encode(change.Description)}</p>" +
+            $"<p class=\"recommendation\">{Encode(change.Recommendation)}</p></td>" +
             "</tr>"));
 
         string body = report.OriginalAnalysis.FindingCount == 0

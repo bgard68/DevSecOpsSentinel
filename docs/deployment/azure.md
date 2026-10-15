@@ -274,12 +274,20 @@ as real.
 **Static Web Apps Free** suits the client well — free TLS, custom domain, no
 meaningful limits at this scale.
 
-**App Service F1** has two constraints worth knowing before choosing it:
+**App Service F1** has three constraints worth knowing before choosing it:
 
 - **60 CPU-minutes per day.** Beyond that the app returns 503 for the remainder
   of the day.
 - **No Always On.** The app sleeps, so the first request after an idle period
   takes roughly thirty seconds.
+- **1 GB of memory for the whole host.** This is a design input rather than a
+  footnote: the remediation diff compares the document line by line, which costs
+  memory quadratic in the number of lines compared. Unbounded, one large request
+  could exhaust the host — 6,000 lines measured at 138 MB, and the
+  100,000-character request limit admits around 50,000 lines. The diff now trims
+  the identical head and tail before comparing, and replaces the changed region
+  wholesale above a 16 MB budget, which holds the worst case at 15 MB. See
+  `RemediationReportService.MaximumComparisonCells`.
 
 For a portfolio deployment the cold start is the bigger problem — first
 impressions happen in the first ten seconds. B1 removes both. That is the one
