@@ -3,6 +3,16 @@
 ## Unreleased
 
 ### Added
+- `docs/maturity.md`: what the project is ready for, the three ceilings that stop
+  it being a service for more than one operator, and — the part usually left out
+  — which of its code has actually been read closely by someone looking for
+  defects. The review coverage is stated as two columns rather than implied to
+  cover everything, because the three defects in log entries 31 to 33 were found
+  in the reviewed column, had passed 493 tests, and survived for one shared
+  reason: every test used a single finding per rule. That blind spot belongs to
+  how the tests were written, so there is no reason to assume it stops at the
+  edge of what has been reviewed.
+
 
 - Findings can be accepted in the workflow that carries them:
   `# sentinel:accept GHA002 - reason`. In the workflow rather than a separate

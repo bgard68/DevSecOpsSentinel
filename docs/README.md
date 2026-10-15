@@ -22,6 +22,7 @@
 
 | | |
 | --- | --- |
+| [maturity.md](maturity.md) | What it is ready for, the three ceilings, and which code has actually been reviewed |
 | [engineering-log.md](engineering-log.md) | Defects found after "complete": how each surfaced, what prevents recurrence |
 | [ci-cd.md](ci-cd.md) | The four workflows, path-selective builds, releasing |
 | [scripts.md](scripts.md) | Every script, what it does, why it exists |
