@@ -71,8 +71,23 @@ instead.
 | `Mode` | `Mock` | `Mock`, `Live` or `Disabled` |
 | `Model` | `gpt-5-mini` | |
 | `ApiKey` | — | Live mode only. Never in the repository |
-| `TimeoutSeconds` | 30 | Clamped between 5 and 120 |
-| `MaximumContextCharacters` | 20000 | Excerpt sent to the model |
+| `TimeoutSeconds` | 30 | Must be between 5 and 120 |
+| `MaximumContextCharacters` | 20000 | Excerpt sent to the model. Between 1000 and 1000000 |
+
+This section is validated when the application starts, and a value outside the
+ranges above stops it starting with a message naming the setting. `TimeoutSeconds`
+is the reason the check exists: the provider clamps it into the range it honours,
+so a configured 300 seconds was previously accepted, silently reduced to 120, and
+documented as though it had been applied. The validator and the clamp now read
+the same two constants.
+
+Two things are deliberately *not* startup failures. An unrecognised `Mode`
+resolves to `Mock` and is reported as a warning at startup — a wrong value is
+fixed by editing one setting, whereas an application that will not start has to
+be diagnosed through deployment logs. And `Live` with no key is a degradation the
+readiness probe reports, not a misconfiguration: deterministic analysis does not
+need OpenAI. Both are reported as `Mock` by `/api/ai/status`, which names the
+provider that will actually answer rather than the string that was configured.
 
 ### Mock and Live
 
@@ -108,6 +123,16 @@ account.
 
 `AllowedRepositories` is a second boundary, independent of what the App
 installation permits. Both must allow a repository before it can be read.
+
+This section is validated at startup too, and the line it draws is between a
+setting that is wrong and one that is incomplete. Incomplete is supported: the
+integration can be enabled before its identifiers, key or allowlist are supplied,
+and the readiness probe reports that as a degradation rather than refusing to
+serve. Wrong is not: a negative identifier, an `ApiBaseUrl` that is not an
+absolute HTTP URL, or an allowlist entry that is not `owner/name` stops startup.
+That last one fails in the direction that matters — an entry which cannot match
+reads as an allowlisted repository while allowing nothing. Blank entries are
+ignored, because an absent entry already allows nothing.
 
 **`ResolveActionReferences` defaults to false and matters.** When true, analysis
 resolves action tags to commit SHAs through the GitHub API — which means analysing

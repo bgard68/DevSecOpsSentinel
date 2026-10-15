@@ -1,10 +1,10 @@
 # Detection rules
 
 Eleven deterministic rules, plus one finding reported against the acceptance
-mechanism itself. Each rule is a class implementing
-`IWorkflowSecurityRule`, registered in the API's composition root and discovered
-by injecting `IEnumerable<IWorkflowSecurityRule>`. Adding one is a new class and
-one registration line.
+mechanism itself. Each rule is a class implementing `IWorkflowSecurityRule`,
+found by `RuleDiscovery` and registered from there, so adding one is a new class
+and nothing else — there is no list to remember. Rules reach the services that
+need them as `IEnumerable<IWorkflowSecurityRule>`.
 
 | Rule | Detects | Severity | Auto-fix |
 | --- | --- | --- | --- |
@@ -24,6 +24,32 @@ one registration line.
 analysis service against the acceptance mechanism itself, when a
 `sentinel:accept` comment has outlived its finding or states no reason — see
 [accepting-findings.md](../accepting-findings.md).
+
+---
+
+## Detection and repair are separate classes
+
+A rule in the Auto-fix column above is two classes: an `IWorkflowSecurityRule`
+that reports the finding, and an `IWorkflowFix` that proposes the edits resolving
+it. Three rules have one — GHA001, GHA002 and GHA003.
+
+The repairs used to live in `WorkflowPatchGenerator`, chosen by comparing each
+finding's rule id against string literals. That put one rule's knowledge in two
+places: the generator held GHA001's action-reference regex, GHA002's exact
+permission text and GHA003's indentation convention, while the rules defining
+those things knew nothing about it. Adding a fixable rule meant editing the
+generator, and because the coupling was a string, renaming a rule id compiled
+cleanly and silently repaired nothing.
+
+A fix proposes edits rather than applying them. Line arithmetic stays with the
+engine, which is what removed the generator's second pass — a loop that existed
+only so GHA003's insertions were applied bottom-up and could not invalidate the
+line numbers of the findings behind them.
+
+Fixes are listed in `FixDiscovery` rather than discovered, because a fix can take
+constructor arguments and reflection would skip exactly those. Two evals cover
+the drift that list invites: a rule reporting fixable findings with no fix
+registered fails the build, and so does a fix naming a rule id no rule reports.
 
 ---
 

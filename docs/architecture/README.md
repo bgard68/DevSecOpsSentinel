@@ -15,6 +15,7 @@ flowchart TB
     subgraph Presentation
       WEB[React + TypeScript]
       API[ASP.NET Core Minimal APIs]
+      EXPORTS[Export renderers]
     end
     subgraph Application
       ANALYZE[Workflow analysis orchestration]
@@ -29,7 +30,6 @@ flowchart TB
       PARSER[YAML structure + line model]
       GITHUB[GitHub App reader]
       OPENAI[OpenAI provider]
-      EXPORTS[Export adapters]
     end
     WEB --> API
     API --> ANALYZE
@@ -40,7 +40,7 @@ flowchart TB
     REMEDIATE --> RULES
     EXPLAIN --> OPENAI
     ANALYZE --> GITHUB
-    REMEDIATE --> EXPORTS
+    API --> EXPORTS
     RULES --> MODELS
 ```
 

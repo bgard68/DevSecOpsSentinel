@@ -1030,3 +1030,221 @@ difference is invisible until the two differ.
 More generally: the verification step is code, and it is the one piece of code
 that nothing else verifies. A harness able to silently discard the work it is
 checking is worse than no harness, because its output is trusted.
+
+---
+
+## 31. The remediation report could deny a fix it had just made
+
+**What was wrong.** `RemediationChange.Resolved` was computed by asking whether a
+finding's rule id still appeared anywhere in the re-analysis:
+
+```csharp
+!remaining.Contains(finding.RuleId)
+```
+
+A rule id is not a finding. Two unpinned actions are two findings under GHA001,
+and the patch generator resolves each independently — one reference may resolve
+to a commit SHA while the other cannot, which is the documented "left untouched"
+path. Fixing one of the two left GHA001 in the surviving set, so **both** findings
+were reported unresolved and the panel read `Resolved: 0` directly beside a diff
+that visibly pinned one of them.
+
+The same missing identity caused two further defects. `RemediationExports` could
+not tell which change belonged to which finding, so it paired the two lists
+positionally and said so in a comment:
+
+> RemediationReportService builds Changes by projecting over the original
+> findings, so the two lists are index-aligned.
+
+Nothing enforced that. A filtered or reordered change list would have printed
+each finding beside another finding's outcome, in the document this tool exists
+to produce as evidence. And the React panel keyed its list on `change.ruleId`,
+so two findings of one rule rendered two elements with the same key.
+
+**How it was found.** By reading the remediation path end to end after noticing
+that `WorkflowPatchGenerator` computes a per-finding `appliedFindings` list and
+then discards it — `.Select(f => f.RuleId).Distinct()` — one layer before anything
+downstream would have needed it.
+
+**Why nothing caught it.** Every test used one finding per rule. With one finding
+per rule the rule-id inference is correct, and the index pairing is correct, so
+the suite agreed with the code for the only shape it ever examined.
+
+**What changed.** `WorkflowPatch` carries `AppliedFindings`: the specific findings
+it edited, which the generator already knew. `RemediationChange` carries the
+finding's line and description, so there is nothing to pair. Resolution is read
+from the patch rather than inferred. The React key includes line and index.
+
+**What prevents recurrence.** Tests for two findings of the same rule, where only
+one is fixed, and a test asserting that every finding produces exactly one change
+in order — the invariant the comment used to assert. A test suite that only ever
+sees one of a thing cannot see a bug about telling two of them apart.
+
+---
+
+## 32. An invalid patch reported a 100% risk reduction
+
+**What was wrong.** The remediation report analysed the proposed content whether
+or not the patch passed validation. The most common reason it fails validation is
+that it no longer parses — and an unparseable document reports no findings at
+all. No findings is a risk score of zero, and a risk score of zero against a
+non-zero original is printed as a **100% risk reduction**, in the same report
+whose `patchValid` field says `false`.
+
+The worst reading of the tool's output was produced by its worst input.
+
+**How it was found.** While fixing entry 31. Reading `BuildAsync` for how
+`Resolved` was derived made the unconditional use of `original.Patch.ProposedContent`
+visible two lines above it.
+
+**Why nothing caught it.** `PatchValid` was asserted, and `RiskReductionPercent`
+was asserted, but never in the same test — and never for an invalid patch. The
+field was right, the number was wrong, and nothing compared them.
+
+**What changed.** A patch that fails validation is not offered as an improvement.
+The proposal becomes the document as it stands: nothing resolved, no reduction
+claimed, an empty diff. This is the same choice the patch generator already makes
+when it cannot resolve an action reference — failing closed rather than appearing
+to have fixed something.
+
+**What prevents recurrence.** A test that builds a report from an invalid patch
+and asserts all three together: zero reduction, nothing resolved, and the second
+analysis having received the original content rather than the rejected patch.
+
+---
+
+## 33. A setting the application accepted and did not honour
+
+**What was wrong.** `OpenAI:TimeoutSeconds` was documented as "clamped between 5
+and 120", and the provider did exactly that:
+
+```csharp
+Math.Clamp(_options.TimeoutSeconds, 5, 120)
+```
+
+Nothing validated it, so a deployment could configure 300 seconds, see it
+accepted, read the documented setting, and run with 120. The configuration file,
+the documentation and the behaviour were three different answers.
+
+This was found while adding startup validation for the section — the first draft
+of the validator allowed 1 to 600, which would have made the two checks disagree
+and shipped a *new* instance of the same defect.
+
+**How it was found.** By checking the configuration documentation against the
+code before writing the documentation for the validator, rather than after.
+
+**Why nothing caught it.** A clamp cannot fail. It silently produces a usable
+value, which is why it reads as defensive programming rather than as a setting
+being ignored.
+
+**What changed.** The range is two constants on `OpenAiOptions`. The validator
+refuses a configured value outside it, and the provider clamps with the same
+constants, so the two cannot drift. A value the application accepts is now a
+value it honours.
+
+**What prevents recurrence.** Tests on both sides of both boundaries, and the
+general rule: a clamp over a configured value is a silent override. Either the
+value is valid and used, or it is invalid and refused.
+
+---
+
+## 34. Four copies of a size limit
+
+**What was wrong.** Each of the four workflow endpoints opened with the same
+eight lines: a null check, a call to `ValidateWorkflowRequest`, and a branch on
+its result. The explain endpoint had to construct a throwaway
+`AnalyzeWorkflowRequest` to reuse the validation at all, because the check was
+typed to one request record rather than to the shape they share. Each endpoint
+also repeated the 422 mapping for an unparseable document, in its own words.
+
+No defect had shipped from this. The exposure was prospective and specific: the
+100,000-character limit was enforced by each author remembering to enforce it, so
+the fifth endpoint was one omission away from accepting an unbounded body.
+
+**What changed.** `IWorkflowRequest` names the shape the requests share. A single
+endpoint filter validates it on the `/api/workflows` route group, so an endpoint
+is covered by belonging to the group rather than by its author's recall. The
+rate-limit policy moved to the group for the same reason. The problem responses
+live in one place, so two endpoints cannot describe one failure differently.
+
+A null check remains in each handler, which is deliberate: it is how the compiler
+is told the request is non-null, rather than a null-forgiving operator asserting
+what another file established. The policy is in one place; only the nullability
+proof is local.
+
+**What prevents recurrence.** The limit is now a property of the group. The
+failure mode that remains — adding an endpoint to the group that takes no
+workflow body — is rejected loudly on that endpoint's first test, rather than
+quietly in production.
+
+---
+
+## 35. One request could exhaust the host
+
+**What was wrong.** The remediation diff compares the original and proposed
+documents by longest common subsequence, and the table it allocates is sized by
+the product of the two line counts:
+
+```csharp
+int[,] lengths = new int[before.Count + 1, after.Count + 1];
+```
+
+The cost is quadratic in the size of the file, and nothing bounded it. Measured
+on the code as it stood:
+
+| Lines | Allocated | Elapsed |
+| --- | --- | --- |
+| 500 | 1 MB | 9 ms |
+| 1,000 | 4 MB | 16 ms |
+| 2,000 | 15 MB | 73 ms |
+| 4,000 | 61 MB | 246 ms |
+| 6,000 | 138 MB | 576 ms |
+
+The request body limit is 100,000 characters, which admits roughly 50,000 lines
+of YAML — about 9 GB. The deployment target is an App Service free tier instance
+with 1 GB for the entire host, so a single large request could take the process
+down, and it did not have to be a malicious one. A rate limit does not help: the
+first request is enough.
+
+**How it was found.** While rating the project rather than while changing it.
+Reading `BuildUnifiedDiff` for an unrelated reason made the unbounded allocation
+visible, and the numbers above were measured before anything was changed —
+asserting a denial of service from arithmetic alone would have been a guess.
+
+**Why nothing caught it.** Every test diffed documents of a few lines, where the
+table is a few hundred cells. The three tests that exercise this code assert that
+`git apply` accepts the output, which it did. Nothing asserted anything about
+what it cost to produce.
+
+The hosting constraint was also absent from the deployment documentation, which
+listed the free tier's CPU quota and cold start but not its memory. A limit that
+is not written down is not a limit anyone designs against.
+
+**What changed.** Two bounds, in order of effect:
+
+- Identical leading and trailing lines are taken as context without entering the
+  table. A remediation patch changes a handful of lines in an otherwise identical
+  document, so this is the case that matters, and it reduced 6,000 lines from
+  138 MB and 576 ms to 1 MB and under a millisecond.
+- Above a 16 MB budget the changed region is replaced wholesale rather than
+  compared. This catches what trimming cannot — changes scattered across
+  thousands of lines — and holds the worst case the request limit admits, 50,000
+  lines, at 15 MB and 16 ms.
+
+A wholesale replacement is a worse diff to read and still a patch `git apply`
+accepts, which is the property that cannot be traded. Hirschberg's linear-space
+variant would have removed the budget entirely; it was not worth it here,
+because a subtle fault in a divide-and-conquer diff produces an invalid patch,
+and that is the exact failure entry 2 of this log was written about.
+
+**What prevents recurrence.** Four tests: a one-line change in a large document
+diffs only that line, scattered changes beyond the budget emit every removal
+before every addition — the structural signature of the fallback — the fallback's
+output still applies with `git apply`, and identical content produces no additions
+or removals, which is the edge case the head and tail trimming has to get right.
+The free tier's 1 GB is now documented as a design input beside its CPU quota.
+
+The structural assertion is deliberate. The obvious test measures allocated
+bytes, but `GC.GetTotalAllocatedBytes` is a process-wide counter that tests
+running in parallel also move, so it would have been a flaky test guarding a
+real property.

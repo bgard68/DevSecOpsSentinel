@@ -17,8 +17,10 @@ POST /api/workflows/analyze
       └─ Rate limiter ················· partitioned by hashed key, else by IP
       │
       ▼
-ValidateWorkflowRequest ················ file name and content present,
-      │                                  content within 100,000 characters
+WorkflowRequestValidationFilter ········ file name and content present,
+      │                                  content within 100,000 characters.
+      │                                  On the /api/workflows route group, so
+      │                                  every endpoint under it is covered
       ▼
 WorkflowAnalysisService.AnalyzeAsync
       │
@@ -33,8 +35,9 @@ WorkflowAnalysisService.AnalyzeAsync
       │      └─ findings ordered by severity, then line, then rule id
       │
       └─ 3. WorkflowPatchGenerator.GenerateAsync
-             ├─ rewrites only automatically fixable findings
+             ├─ asks each fixable finding's IWorkflowFix for edits
              ├─ only on lines the parser considers semantic
+             ├─ applies replacements, then insertions bottom-up
              ├─ re-parses the result
              ├─ checks job count and triggers are unchanged
              ├─ re-runs every rule
@@ -73,6 +76,34 @@ resolved.
 An action reference that cannot be resolved is left untouched, is not counted as
 applied, does not reduce the risk score, and produces a warning explaining why.
 Failing closed matters more than appearing to fix something.
+
+A patch that fails validation is not offered as an improvement at all: the
+proposal becomes the document as it stands, so the report claims no reduction,
+resolves nothing and carries an empty diff. The previous behaviour analysed the
+rejected content regardless, and since the usual reason for rejection is that the
+content no longer parses — which reports no findings — that arrived as a 100%
+risk reduction printed beside the same report declaring the patch invalid.
+
+Which findings a patch resolved is recorded by the patch, per finding, rather
+than inferred from which rule ids survive re-analysis. The inference could not
+tell two findings of one rule apart, so fixing one of two unpinned actions left
+that rule id in the surviving set and reported both as unresolved.
+
+### The diff is bounded
+
+The unified diff compares the document line by line, which costs memory
+quadratic in the number of lines compared — measured at 15 MB for 2,000 lines
+and 138 MB for 6,000. The request limit of 100,000 characters admits roughly
+50,000 lines, which would have asked for about 9 GB on a host that has 1 GB.
+
+Two things bound it. Identical leading and trailing lines are taken as context
+without entering the comparison table, so a one-line change in a large workflow
+compares one line against one line — which is the shape every remediation patch
+actually has. Above a 16 MB budget the changed region is replaced wholesale
+instead of compared, which holds the worst case at 15 MB and 16 ms.
+
+The fallback produces a larger diff to read and a valid one that applies to the
+same document. A patch git accepts is the contract; a minimal patch is not.
 
 ---
 

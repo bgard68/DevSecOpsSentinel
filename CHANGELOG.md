@@ -27,11 +27,43 @@
   provider selector. The reader's tests assert exact source line numbers, and
   cover anchors and aliases, flow style, the YAML 1.1 resolution of `on` to the
   boolean `true`, and eight degenerate documents. The export tests are driven
-  from hand-built reports so that every severity, a null line number and a
-  change list shorter than the finding list are all reachable — combinations a
-  real workflow cannot be made to produce on demand.
+  from hand-built reports so that every severity and a null line number are
+  reachable — combinations a real workflow cannot be made to produce on demand.
+  (The case for a change list shorter than the finding list was removed when the
+  exports stopped pairing the two by index; that shape is now unrepresentable
+  rather than handled.)
 
 ### Changed
+
+- Each rule's repair moved out of `WorkflowPatchGenerator` and into an
+  `IWorkflowFix` beside the rule that reports the finding. The generator selected
+  repairs by comparing rule ids against string literals, so one class held
+  GHA001's action-reference regex, GHA002's exact permission text and GHA003's
+  indentation convention while the rules defining them knew nothing about it —
+  and renaming a rule id compiled cleanly and silently repaired nothing. A fix
+  proposes edits; the engine orders them, which removed the second pass that
+  existed only so GHA003's insertions were applied bottom-up. Two evals fail the
+  build if a fixable rule has no fix, or a fix names a rule that does not exist.
+- Export formats are a registry rather than a switch in the endpoint, and the
+  "supported formats" message a rejected request receives is derived from it. The
+  list was previously written by hand beside the switch that accepted the
+  formats, so the two could disagree about what the API supports.
+- `OpenAI:Mode` is parsed once. It was read as a string in four places with three
+  different comparisons, and an unrecognised value resolved to Mock in the
+  composition root while both status endpoints went on reporting the configured
+  string — so `Mode: "Lve"` ran mocked and the badge read "Lve". Provider
+  selection moved to a factory that can be tested without a web host, and the
+  status endpoints report the mode that will actually answer.
+- The `OpenAI` and `GitHub` sections are bound, validated and checked on start,
+  as the `Security` section already was. The line drawn for GitHub is between
+  wrong and incomplete: an enabled-but-unconfigured integration remains a
+  readiness degradation, while a negative identifier, a non-absolute
+  `ApiBaseUrl`, or an allowlist entry that is not `owner/name` stops startup —
+  that last one allows nothing while appearing to allow something.
+- The four workflow endpoints share a route group, so the request validation and
+  the rate-limit policy are stated once. Each handler previously opened with the
+  same eight lines, which left the 100,000-character limit depending on the
+  author of the next endpoint remembering it.
 
 - GHA002, GHA004 and GHA006 establish need before reporting. GHA002 knows what
   each of 24 published actions cannot work without, so a CodeQL job holding
@@ -58,6 +90,43 @@
   test body or assertion altered.
 
 ### Fixed
+- One remediation request could exhaust the host. The unified diff allocated a
+  comparison table sized by the product of the two line counts, with no bound:
+  measured at 15 MB for 2,000 lines, 61 MB for 4,000 and 138 MB for 6,000, while
+  the 100,000-character request limit admits around 50,000 lines — roughly 9 GB
+  on an App Service free tier that has 1 GB for the whole host. Identical leading
+  and trailing lines are now taken as context without entering the table, which
+  is the shape every remediation patch has, and above a 16 MB budget the changed
+  region is replaced wholesale instead of compared. The worst case the request
+  limit admits now costs 15 MB and 16 ms. The fallback is a larger diff to read
+  and still one `git apply` accepts.
+
+
+- The remediation report could deny a fix it had just made. Whether a finding was
+  resolved was inferred from which rule ids survived re-analysis, and a rule id
+  is not a finding: two unpinned actions are two GHA001 findings, and resolving
+  one of them — the other's reference being unresolvable — left GHA001 in the
+  surviving set, so both were reported unresolved and the panel read
+  `Resolved: 0` beside a diff that visibly pinned one. `WorkflowPatch` now
+  carries the findings it edited, which the generator already knew and discarded,
+  and resolution is read rather than guessed.
+- An invalid patch reported a 100% risk reduction. The proposed content was
+  analysed whether or not it passed validation, and the usual reason it fails is
+  that it no longer parses — which reports no findings, scores zero risk, and
+  prints as a complete reduction in the same report declaring the patch invalid.
+  A patch that fails validation is no longer offered as an improvement: nothing
+  resolved, no reduction claimed, an empty diff.
+- The exports paired findings to outcomes by list index, on the strength of a
+  comment asserting the two lists were built in step. A `RemediationChange` now
+  carries its finding's line and description, so there is nothing to pair — the
+  failure would have been silent, and in the document this tool exists to produce
+  as evidence.
+- `OpenAI:TimeoutSeconds` was accepted and not honoured. The provider clamps it
+  to the range 5–120, so a configured 300 was accepted, silently reduced, and
+  documented as applied. The range is now two constants that the validator and
+  the clamp both read, so a value the application accepts is a value it uses.
+- Two findings of the same rule rendered React list items with the same key,
+  because the key was the rule id.
 
 - The problem document written when `IProblemDetailsService` declines is served
   as `application/problem+json`. The content type was assigned and then
