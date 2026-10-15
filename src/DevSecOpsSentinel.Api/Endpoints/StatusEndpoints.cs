@@ -100,7 +100,7 @@ public static class StatusEndpoints
             (!gitHubOptions.IsConfigured || !privateKeySource.IsAvailable);
 
         bool openAiDegraded =
-            string.Equals(openAiOptions.Mode, "Live", StringComparison.OrdinalIgnoreCase) &&
+            openAiOptions.ResolvedMode == WorkflowAiMode.Live &&
             string.IsNullOrWhiteSpace(openAiOptions.ApiKey);
 
         return Results.Ok(new
@@ -120,10 +120,10 @@ public static class StatusEndpoints
             },
             ai = new
             {
-                state = openAiDegraded ? "Unavailable" : openAiOptions.Mode,
+                state = openAiDegraded ? "Unavailable" : openAiOptions.ResolvedModeName,
                 detail = openAiDegraded
                     ? "OpenAI is configured for live mode but no API key is available. Explanations fall back to deterministic text and are labelled as such."
-                    : $"OpenAI is in {openAiOptions.Mode} mode."
+                    : $"OpenAI is in {openAiOptions.ResolvedModeName} mode."
             },
             timestampUtc = DateTimeOffset.UtcNow
         });
@@ -136,14 +136,13 @@ public static class StatusEndpoints
 
         return Results.Ok(new
         {
-            enabled = !string.Equals(
-                openAiOptions.Mode,
-                "Disabled",
-                StringComparison.OrdinalIgnoreCase),
+            // Both of these report the resolved mode rather than the configured string, so
+            // the badge a user reads names the provider that will answer them.
+            enabled = openAiOptions.ResolvedMode != WorkflowAiMode.Disabled,
 
             configured,
             provider = "OpenAI",
-            mode = openAiOptions.Mode,
+            mode = openAiOptions.ResolvedModeName,
             model = openAiOptions.Model,
 
             costProtection = new

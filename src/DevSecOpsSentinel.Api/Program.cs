@@ -13,6 +13,7 @@ using DevSecOpsSentinel.Infrastructure;
 using DevSecOpsSentinel.Infrastructure.Ai;
 using DevSecOpsSentinel.Infrastructure.GitHub;
 using DevSecOpsSentinel.Infrastructure.Rules;
+using DevSecOpsSentinel.Infrastructure.Rules.Fixes;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
@@ -123,7 +124,17 @@ foreach (IWorkflowSecurityRule rule in RuleDiscovery.All())
 {
     builder.Services.AddSingleton(rule);
 }
-builder.Services.AddSingleton<IWorkflowPatchGenerator, WorkflowPatchGenerator>();
+// The repairs, composed from the same single list the tests and the eval read. Stated as a
+// factory rather than by type so the constructor taking the fix set is the one selected, and
+// so a reader of this file can see that the patch generator is handed its repairs rather
+// than containing them.
+builder.Services.AddSingleton<IWorkflowPatchGenerator>(services =>
+    new WorkflowPatchGenerator(
+        services.GetRequiredService<IWorkflowParser>(),
+        services.GetServices<IWorkflowSecurityRule>(),
+        FixDiscovery.All(
+            services.GetRequiredService<IWorkflowActionReferenceResolver>(),
+            services.GetRequiredService<GitHubOptions>())));
 builder.Services.AddSingleton<IWorkflowAnalysisService, WorkflowAnalysisService>();
 builder.Services.AddSingleton<IRemediationReportService, RemediationReportService>();
 
@@ -134,23 +145,33 @@ builder.Services.AddSingleton<
     ISensitiveDataSanitizer,
     SensitiveDataSanitizer>();
 
-OpenAiOptions openAiOptions = builder.Configuration
-    .GetSection(OpenAiOptions.SectionName)
-    .Get<OpenAiOptions>()
-    ?? new OpenAiOptions();
+/*
+ * Bound, validated and checked on start, matching the API security options above.
+ *
+ * These two sections were previously read with Get<T>() into a plain singleton, which meant
+ * no validation ran over them and a wrong value surfaced as a failed request rather than a
+ * refusal to start. The singleton registration is kept so the options stay directly
+ * injectable — endpoints and infrastructure take OpenAiOptions and GitHubOptions, not
+ * IOptions<T>, because nothing here reloads them and the indirection would buy nothing.
+ */
+builder.Services
+    .AddOptions<OpenAiOptions>()
+    .Bind(builder.Configuration.GetSection(OpenAiOptions.SectionName))
+    .ValidateOnStart();
 
-builder.Services.AddSingleton(openAiOptions);
+builder.Services.AddSingleton<
+    IValidateOptions<OpenAiOptions>,
+    OpenAiOptionsValidator>();
 
+builder.Services.AddSingleton(services =>
+    services.GetRequiredService<IOptions<OpenAiOptions>>().Value);
+
+// Selection lives in the factory, where it can be tested without a web host and where an
+// unrecognised mode is reported rather than quietly treated as Mock.
 builder.Services.AddSingleton<IWorkflowAiProvider>(services =>
-    openAiOptions.Mode.ToUpperInvariant() switch
-    {
-        "LIVE" => new OpenAiWorkflowAiProvider(
-            openAiOptions,
-            services.GetRequiredService<
-                ILogger<OpenAiWorkflowAiProvider>>()),
-        "DISABLED" => new DisabledWorkflowAiProvider(),
-        _ => new MockWorkflowAiProvider()
-    });
+    WorkflowAiProviderFactory.Create(
+        services.GetRequiredService<OpenAiOptions>(),
+        services.GetRequiredService<ILoggerFactory>()));
 
 // Registered separately from the configured provider so the selector can hand
 // it to anonymous callers whatever the deployment is set to.
@@ -163,12 +184,17 @@ builder.Services.AddSingleton<
     IWorkflowExplanationService,
     WorkflowExplanationService>();
 
-GitHubOptions gitHubOptions = builder.Configuration
-    .GetSection(GitHubOptions.SectionName)
-    .Get<GitHubOptions>()
-    ?? new GitHubOptions();
+builder.Services
+    .AddOptions<GitHubOptions>()
+    .Bind(builder.Configuration.GetSection(GitHubOptions.SectionName))
+    .ValidateOnStart();
 
-builder.Services.AddSingleton(gitHubOptions);
+builder.Services.AddSingleton<
+    IValidateOptions<GitHubOptions>,
+    GitHubOptionsValidator>();
+
+builder.Services.AddSingleton(services =>
+    services.GetRequiredService<IOptions<GitHubOptions>>().Value);
 builder.Services.AddHttpClient("GitHub", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
@@ -260,6 +286,25 @@ if (!app.Environment.IsDevelopment() &&
                 ? "empty"
                 : string.Join(", ", startupSecurity.AllowedOrigins),
             app.Environment.EnvironmentName);
+    }
+
+    /*
+     * An unrecognised AI mode resolves to Mock rather than refusing to start, for the reason
+     * given in WorkflowAiModes. Reported here as well as by the factory because the provider
+     * is built on first use: without this, a deployment configured for live explanations and
+     * silently mocked would say nothing until someone requested one.
+     */
+    OpenAiOptions startupAi = app.Services.GetRequiredService<OpenAiOptions>();
+
+    if (!WorkflowAiModes.TryParse(startupAi.Mode, out WorkflowAiMode _))
+    {
+        startupLogger.LogWarning(
+            "OpenAI:Mode is {ConfiguredMode}, which is not a recognised mode. AI "
+            + "explanations will be mocked and reported as {ResolvedMode}. Recognised "
+            + "modes are {RecognisedModes}.",
+            string.IsNullOrWhiteSpace(startupAi.Mode) ? "empty" : startupAi.Mode,
+            startupAi.ResolvedModeName,
+            string.Join(", ", Enum.GetNames<WorkflowAiMode>()));
     }
 }
 

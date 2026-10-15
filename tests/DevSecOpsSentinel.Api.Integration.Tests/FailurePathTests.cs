@@ -32,6 +32,29 @@ public sealed class FailurePathTests(ApiFactory factory)
             response.Content.Headers.ContentType?.MediaType);
     }
 
+    [Theory]
+    [InlineData("/api/workflows/analyze")]
+    [InlineData("/api/workflows/remediation")]
+    [InlineData("/api/workflows/remediation/export/markdown")]
+    [InlineData("/api/workflows/explain")]
+    public async Task WorkflowEndpoint_WorkflowOverTheSizeLimit_ReturnsPayloadTooLarge(
+        string route)
+    {
+        // The limit is enforced by one filter on the /api/workflows route group rather than
+        // by each handler, which is what makes it apply to an endpoint added later. Asserted
+        // on every endpoint in the group, because the previous arrangement — a copy of the
+        // check in each handler — was covered by a test on one of the four.
+        HttpResponseMessage response = await _client.PostAsJsonAsync(
+            route,
+            new { fileName = "build.yml", content = new string('x', 100_001) });
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+
+        Assert.Equal(
+            "application/problem+json",
+            response.Content.Headers.ContentType?.MediaType);
+    }
+
     [Fact]
     public async Task Analyze_WorkflowJustUnderTheSizeLimit_ReturnsOk()
     {
