@@ -140,8 +140,10 @@ export interface RemediationChange {
   ruleId: string;
   title: string;
   severity: string;
-  resolved: boolean;
+  lineNumber: number | null;
+  description: string;
   recommendation: string;
+  resolved: boolean;
 }
 
 export interface RemediationReport {
