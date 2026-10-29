@@ -21,7 +21,13 @@ public sealed class ExcessivePermissionsFix : IWorkflowFix
         WorkflowFinding finding,
         CancellationToken cancellationToken)
     {
-        string line = context.Line(finding.LineNumber!.Value);
+        // A finding that carries no line number gives a line edit nothing to target.
+        if (finding.LineNumber is not int lineNumber)
+        {
+            return Task.FromResult(WorkflowFixResult.NotApplicable);
+        }
+
+        string line = context.Line(lineNumber);
 
         // The trailing comment is removed before comparing so "permissions: write-all # why"
         // is still recognised, and preserved nowhere else because the replacement line has
@@ -37,7 +43,7 @@ public sealed class ExcessivePermissionsFix : IWorkflowFix
         return Task.FromResult(
             WorkflowFixResult.Applied(
                 WorkflowLineEdit.Replace(
-                    finding.LineNumber.Value,
+                    lineNumber,
                     indent + "permissions: read-all")));
     }
 

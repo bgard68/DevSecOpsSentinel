@@ -87,8 +87,8 @@ public sealed class WorkflowAiModeTests
     {
         // The invariant, over every mode name plus a wrong one: whatever the API reports as
         // the mode is the provider the factory returns.
-        foreach (string configured in
-            (string[])["Mock", "Live", "Disabled", "nonsense", ""])
+        string[] modes = ["Mock", "Live", "Disabled", "nonsense", ""];
+        foreach (string configured in modes)
         {
             OpenAiOptions options = new()
             {
