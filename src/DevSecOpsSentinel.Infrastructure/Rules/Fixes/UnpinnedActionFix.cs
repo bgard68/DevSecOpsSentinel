@@ -25,7 +25,13 @@ public sealed partial class UnpinnedActionFix(
         WorkflowFinding finding,
         CancellationToken cancellationToken)
     {
-        string line = context.Line(finding.LineNumber!.Value);
+        // A finding that carries no line number gives a line edit nothing to target.
+        if (finding.LineNumber is not int lineNumber)
+        {
+            return WorkflowFixResult.NotApplicable;
+        }
+
+        string line = context.Line(lineNumber);
 
         Match match = ActionReferenceRegex().Match(line);
         if (!match.Success)
@@ -38,7 +44,7 @@ public sealed partial class UnpinnedActionFix(
         if (!gitHubOptions.ResolveActionReferences)
         {
             return WorkflowFixResult.Declined(
-                $"Line {finding.LineNumber}: '{actionReference}' was not pinned because GitHub action reference resolution is disabled.");
+                $"Line {lineNumber}: '{actionReference}' was not pinned because GitHub action reference resolution is disabled.");
         }
 
         ActionReferenceResolutionResult resolution =
@@ -47,14 +53,14 @@ public sealed partial class UnpinnedActionFix(
         if (!resolution.IsResolved || !IsFullCommitSha(resolution.CommitSha))
         {
             return WorkflowFixResult.Declined(
-                $"Line {finding.LineNumber}: {resolution.Message}");
+                $"Line {lineNumber}: {resolution.Message}");
         }
 
         Group version = match.Groups["version"];
 
         return WorkflowFixResult.Applied(
             WorkflowLineEdit.Replace(
-                finding.LineNumber.Value,
+                lineNumber,
                 line[..version.Index] +
                     resolution.CommitSha +
                     line[(version.Index + version.Length)..]));

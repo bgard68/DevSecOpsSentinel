@@ -27,13 +27,19 @@ public sealed class MissingTimeoutFix : IWorkflowFix
         WorkflowFinding finding,
         CancellationToken cancellationToken)
     {
-        string declaration = context.Line(finding.LineNumber!.Value);
+        // A finding that carries no line number gives a line edit nothing to target.
+        if (finding.LineNumber is not int lineNumber)
+        {
+            return Task.FromResult(WorkflowFixResult.NotApplicable);
+        }
+
+        string declaration = context.Line(lineNumber);
         int indent = declaration.Length - declaration.TrimStart().Length;
 
         return Task.FromResult(
             WorkflowFixResult.Applied(
                 WorkflowLineEdit.InsertAfter(
-                    finding.LineNumber.Value,
+                    lineNumber,
                     new string(' ', indent + 2) +
                         $"timeout-minutes: {DefaultTimeoutMinutes}")));
     }

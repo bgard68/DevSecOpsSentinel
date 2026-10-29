@@ -64,7 +64,7 @@ public sealed class RemediationReportServiceTests
             originalContent,
             proposedContent);
 
-        string workspace = Path.Combine(
+        string workspace = Path.Join(
             Path.GetTempPath(),
             $"sentinel-patch-{Guid.NewGuid():N}");
 
@@ -74,10 +74,10 @@ public sealed class RemediationReportServiceTests
         {
             RunGit(workspace, "init", "--quiet");
 
-            string targetPath = Path.Combine(workspace, "ci.yml");
+            string targetPath = Path.Join(workspace, "ci.yml");
             await File.WriteAllTextAsync(targetPath, originalContent);
 
-            string patchPath = Path.Combine(workspace, "remediation.patch");
+            string patchPath = Path.Join(workspace, "remediation.patch");
             await File.WriteAllTextAsync(
                 patchPath,
                 string.Join("\n", report.UnifiedDiff) + "\n");
@@ -122,7 +122,7 @@ public sealed class RemediationReportServiceTests
             "\\ No newline at end of file",
             report.UnifiedDiff);
 
-        string workspace = Path.Combine(
+        string workspace = Path.Join(
             Path.GetTempPath(),
             $"sentinel-patch-{Guid.NewGuid():N}");
 
@@ -132,11 +132,11 @@ public sealed class RemediationReportServiceTests
         {
             RunGit(workspace, "init", "--quiet");
 
-            string targetPath = Path.Combine(workspace, "ci.yml");
+            string targetPath = Path.Join(workspace, "ci.yml");
             await File.WriteAllTextAsync(targetPath, originalContent);
 
             await File.WriteAllTextAsync(
-                Path.Combine(workspace, "remediation.patch"),
+                Path.Join(workspace, "remediation.patch"),
                 string.Join("\n", report.UnifiedDiff) + "\n");
 
             (int exitCode, string output) = RunGit(
@@ -385,7 +385,7 @@ public sealed class RemediationReportServiceTests
         string proposed,
         RemediationReport report)
     {
-        string workspace = Path.Combine(
+        string workspace = Path.Join(
             Path.GetTempPath(),
             $"sentinel-patch-{Guid.NewGuid():N}");
 
@@ -395,11 +395,11 @@ public sealed class RemediationReportServiceTests
         {
             RunGit(workspace, "init", "--quiet");
 
-            string targetPath = Path.Combine(workspace, fileName);
+            string targetPath = Path.Join(workspace, fileName);
             await File.WriteAllTextAsync(targetPath, original);
 
             await File.WriteAllTextAsync(
-                Path.Combine(workspace, "remediation.patch"),
+                Path.Join(workspace, "remediation.patch"),
                 string.Join("\n", report.UnifiedDiff) + "\n");
 
             (int exitCode, string output) = RunGit(
