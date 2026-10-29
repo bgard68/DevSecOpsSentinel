@@ -23,6 +23,12 @@
     -->
     <PackageVersion Include="YamlDotNet" Version="18.1.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+    <!--
+      Reads the compiled assemblies so the layering tests assert what the
+      compiler produced, not what the project files promise. Test-only; no
+      shipped project may reference it.
+    -->
+    <PackageVersion Include="NetArchTest.eNhancedEdition" Version="1.4.5" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
   </ItemGroup>
