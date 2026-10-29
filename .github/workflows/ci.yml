@@ -254,6 +254,13 @@ jobs:
       - name: Run tests
         run: npm test
 
+      # Structural rules the type checker cannot state: no import cycles, no
+      # production import of test code, no import that fails to resolve. A
+      # plain npm script against the committed config, so the Actions
+      # allowlist is untouched.
+      - name: Check the import graph
+        run: npm run depcruise
+
       - name: Audit packages
         run: npm audit --audit-level=high
 
