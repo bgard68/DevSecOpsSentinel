@@ -1302,6 +1302,113 @@ public sealed class SecurityRuleTests
         Assert.Empty(new ArtifactPoisoningRule().Evaluate(workflow));
     }
 
+    [Fact]
+    public void Evaluate_DeploySharingAGroupWithThePullRequestTeardown_IsReported()
+    {
+        // The shape that silently cancelled a production deploy on every losing
+        // race: push deploy and closed-PR teardown in one ref-keyed group.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Deploy",
+            "on:",
+            "  push:",
+            "    branches: [ main ]",
+            "  pull_request:",
+            "    types: [ opened, synchronize, reopened, closed ]",
+            "concurrency:",
+            "  group: deploy-${{ github.ref }}",
+            "  cancel-in-progress: true",
+            "jobs:",
+            "  deploy:",
+            "    runs-on: ubuntu-latest",
+            "    timeout-minutes: 15",
+            "    steps:",
+            "      - run: echo deploy"
+        ]));
+
+        WorkflowFinding finding = Assert.Single(
+            new SelfCancellingDeployRule().Evaluate(workflow));
+
+        Assert.Equal("GHA012", finding.RuleId);
+    }
+
+    [Fact]
+    public void Evaluate_GroupScopedByEventName_ProducesNoFinding()
+    {
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Deploy",
+            "on:",
+            "  push:",
+            "    branches: [ main ]",
+            "  pull_request:",
+            "    types: [ opened, synchronize, reopened, closed ]",
+            "concurrency:",
+            "  group: deploy-${{ github.event_name }}-${{ github.ref }}",
+            "  cancel-in-progress: true",
+            "jobs:",
+            "  deploy:",
+            "    runs-on: ubuntu-latest",
+            "    timeout-minutes: 15",
+            "    steps:",
+            "      - run: echo deploy"
+        ]));
+
+        Assert.Empty(new SelfCancellingDeployRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Evaluate_PullRequestWithoutTheClosedType_ProducesNoFinding()
+    {
+        // Ordinary CI: no teardown run exists, so the group cannot collide.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: CI",
+            "on:",
+            "  push:",
+            "    branches: [ main ]",
+            "  pull_request:",
+            "concurrency:",
+            "  group: ci-${{ github.ref }}",
+            "  cancel-in-progress: true",
+            "jobs:",
+            "  build:",
+            "    runs-on: ubuntu-latest",
+            "    timeout-minutes: 15",
+            "    steps:",
+            "      - run: echo build"
+        ]));
+
+        Assert.Empty(new SelfCancellingDeployRule().Evaluate(workflow));
+    }
+
+    [Fact]
+    public void Evaluate_CancelInProgressExpression_ProducesNoFinding()
+    {
+        // A gated cancel is a decision, not this defect — only the literal true
+        // lets the teardown kill the deploy unconditionally.
+        ParsedWorkflow workflow = Parse(string.Join('\n',
+        [
+            "name: Deploy",
+            "on:",
+            "  push:",
+            "    branches: [ main ]",
+            "  pull_request:",
+            "    types: [ opened, synchronize, reopened, closed ]",
+            "concurrency:",
+            "  group: deploy-${{ github.ref }}",
+            "  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}",
+            "jobs:",
+            "  deploy:",
+            "    runs-on: ubuntu-latest",
+            "    timeout-minutes: 15",
+            "    steps:",
+            "      - run: echo deploy"
+        ]));
+
+        Assert.Empty(new SelfCancellingDeployRule().Evaluate(workflow));
+    }
+
     private ParsedWorkflow Parse(string content)
     {
         WorkflowParseResult result = _parser.Parse(

@@ -29,6 +29,7 @@ public static class GoldenCorpus
     public const string UndeclaredPermissions = "GHA009";
     public const string SelfHostedRunner = "GHA010";
     public const string ArtifactPoisoning = "GHA011";
+    public const string SelfCancellingDeploy = "GHA012";
 
     public static IReadOnlyList<CorpusEntry> Entries { get; } =
     [
@@ -71,6 +72,11 @@ public static class GoldenCorpus
         new("artifact-poisoning.yml",
             [ArtifactPoisoning],
             "A privileged workflow_run job consuming a contributor-produced artifact."),
+
+        new("self-cancelling-deploy.yml",
+            [SelfCancellingDeploy],
+            "A ref-keyed concurrency group shared by the push deploy and the closed-PR "
+            + "teardown, so cancel-in-progress kills the deploy while reporting green."),
 
         new("prompt-injection.yml",
             [Unpinned],

@@ -39,7 +39,9 @@ internal static class YamlWorkflowStructureReader
                 ReadPermissions(Value(root, "permissions")),
                 ReadJobs(Value(root, "jobs") as YamlMappingNode))
             {
-                PermissionsDeclared = Value(root, "permissions") is not null
+                PermissionsDeclared = Value(root, "permissions") is not null,
+                Concurrency = ReadConcurrency(Value(root, "concurrency")),
+                TriggerTypes = ReadTriggerTypes(root)
             };
 
             return true;
@@ -82,6 +84,59 @@ internal static class YamlWorkflowStructureReader
 
             _ => []
         };
+    }
+
+    private static WorkflowConcurrency? ReadConcurrency(YamlNode? concurrency) =>
+        concurrency switch
+        {
+            // concurrency: deploy — the scalar shorthand names a group and keeps
+            // GitHub's default of queueing, so CancelInProgress stays null.
+            YamlScalarNode scalar => new WorkflowConcurrency(
+                scalar.Value,
+                null,
+                LineOf(scalar)),
+
+            YamlMappingNode mapping => new WorkflowConcurrency(
+                (Value(mapping, "group") as YamlScalarNode)?.Value,
+                (Value(mapping, "cancel-in-progress") as YamlScalarNode)?.Value,
+                LineOf(mapping)),
+
+            _ => null
+        };
+
+    private static IReadOnlyList<WorkflowTriggerTypes> ReadTriggerTypes(
+        YamlMappingNode root)
+    {
+        // Same key resolution as ReadTriggers: YAML 1.1 turns an unquoted `on`
+        // into a boolean, so the mapping can sit under either spelling.
+        YamlNode? triggers =
+            Value(root, "on") ??
+            Value(root, "true") ??
+            Value(root, "True");
+
+        if (triggers is not YamlMappingNode mapping)
+        {
+            return [];
+        }
+
+        List<WorkflowTriggerTypes> results = [];
+
+        foreach ((YamlNode key, YamlNode value) in mapping.Children)
+        {
+            if (key is YamlScalarNode { Value.Length: > 0 } trigger &&
+                value is YamlMappingNode detail &&
+                Value(detail, "types") is YamlSequenceNode types)
+            {
+                results.Add(new WorkflowTriggerTypes(
+                    trigger.Value,
+                    [.. types.Children
+                        .OfType<YamlScalarNode>()
+                        .Select(child => child.Value ?? string.Empty)
+                        .Where(type => type.Length > 0)]));
+            }
+        }
+
+        return results;
     }
 
     private static IReadOnlyList<WorkflowPermissionEntry> ReadPermissions(
