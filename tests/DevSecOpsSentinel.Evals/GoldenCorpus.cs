@@ -29,7 +29,7 @@ public static class GoldenCorpus
     public const string UndeclaredPermissions = "GHA009";
     public const string SelfHostedRunner = "GHA010";
     public const string ArtifactPoisoning = "GHA011";
-    public const string SelfCancellingDeploy = "GHA012";
+    public const string SelfCancellingDeploy = "GHA013";
 
     public static IReadOnlyList<CorpusEntry> Entries { get; } =
     [

@@ -1248,3 +1248,54 @@ The structural assertion is deliberate. The obvious test measures allocated
 bytes, but `GC.GetTotalAllocatedBytes` is a process-wide counter that tests
 running in parallel also move, so it would have been a flaky test guarding a
 real property.
+
+## 36. A deploy cancelled by its own pull request, and a rule id that was already taken
+
+Two faults, a day apart, with the same shape: the thing that would have caught
+them was a sentence rather than an assertion.
+
+**The deploy.** `bgard68/ToDoApp`'s frontend workflow runs on `push` to
+`frontend` and on `pull_request` including the `closed` type — the latter to
+tear down the preview environment a merged pull request leaves behind. Both are
+the same workflow, and its concurrency group was
+`frontend-deploy-${{ github.ref }}` with `cancel-in-progress: true`.
+
+Merging starts both runs in the same second. On the closed event of a merged
+pull request the ref no longer distinguishes them, so both land in one group and
+the teardown cancels the deploy. Nothing turns red: a cancelled run is not a
+failed run, and the teardown itself finishes green. The site kept serving the
+previous build. The run history shows the losing race on 2026-10-02 and again on
+both merges of 2026-10-29, which is when a health sweep noticed that no
+successful push deploy existed in retained history at all.
+
+The fix is to name the event in the group — `${{ github.event_name }}-${{
+github.ref }}` — so a deploy can only be superseded by a newer deploy, and
+pull request runs cancel only each other.
+
+**What prevents recurrence.** GHA013. A sentence in a runbook would not have
+helped, because nobody was reading a runbook: the workflow looked correct, the
+checks were green, and the only evidence was an absence. The rule demands the
+complete hazard — `push`, a `closed`-typed pull request trigger, a group without
+`github.event_name`, and a literal `cancel-in-progress: true` — so this
+repository's own gated cancels and every ordinary CI workflow stay silent. The
+weekly audit scans the fleet, so a reintroduction anywhere is now a finding.
+
+**The rule id.** Writing that rule, the next free id looked like GHA012: the
+rules are discovered by reflection over `IWorkflowSecurityRule`, GHA011 was the
+highest one found, and every id test enumerates the same catalogue. The rule
+shipped as GHA012 with 585 tests passing.
+
+GHA012 was already taken. `WorkflowAnalysisService` issues it against the
+acceptance mechanism — a `sentinel:accept` directive that has outlived its
+finding — and it implements no rule, so reflection cannot see it. The collision
+was caught by step 1 of "Adding a rule" in rules.md, which says in prose exactly
+this, and which is not a test. Two findings answering to one id is not cosmetic:
+an acceptance directive is written against an id and cannot be renumbered
+afterwards, so one directive would have silenced both.
+
+**What prevents recurrence.** `RuleIdAllocationTests` compares the rules against
+`WorkflowAnalysisService.StaleSuppressionRuleId` directly, and asserts the
+highest rule id sits above it — the ordering that makes the next allocation
+obvious. The constant became public for it, which is honest: an issued id is
+already public API. The prose in rules.md stays, now describing an invariant
+something enforces rather than one a reader has to honour.

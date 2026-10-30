@@ -40,16 +40,17 @@ makes live AI defensible in a security tool at all.
 
 ## What it detects
 
-Eleven rules covering pinning, permissions, timeouts, privileged triggers,
+Twelve rules covering pinning, permissions, timeouts, privileged triggers,
 script injection, credential persistence, untrusted checkout, secret
-forwarding, self-hosted runners and artifact poisoning.
+forwarding, self-hosted runners, artifact poisoning and deploys a pull request
+teardown can cancel.
 
 | | | |
 | --- | --- | --- |
 | GHA001 unpinned action | GHA005 script injection | GHA009 undeclared permissions |
 | GHA002 excessive permissions | GHA006 persisted credentials | GHA010 self-hosted runner |
 | GHA003 missing timeout | GHA007 untrusted checkout | GHA011 artifact poisoning |
-| GHA004 `pull_request_target` | GHA008 inherited secrets | |
+| GHA004 `pull_request_target` | GHA008 inherited secrets | GHA013 self-cancelling deploy |
 
 Full descriptions in [docs/architecture/rules.md](docs/architecture/rules.md).
 

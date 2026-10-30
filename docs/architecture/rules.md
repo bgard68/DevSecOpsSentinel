@@ -19,6 +19,7 @@ need them as `IEnumerable<IWorkflowSecurityRule>`.
 | GHA009 | No declared token permissions | Medium | No |
 | GHA010 | Self-hosted runner on a pull-request trigger | High | No |
 | GHA011 | `workflow_run` job consuming an artifact | High | No |
+| GHA013 | Deploy sharing a concurrency group with the PR teardown | Medium | No |
 
 `GHA012` is not in the table because it is not a rule. It is reported by the
 analysis service against the acceptance mechanism itself, when a
@@ -178,6 +179,18 @@ contributor code on one leaves what it did behind for the next.
 **GHA011** — `workflow_run` runs privileged and usually collects something a
 less-privileged workflow produced. That artifact is contributor-controlled.
 
+**GHA013** — the one rule here that reports no security weakness. Merging a pull
+request starts two runs at once: the push to the base branch, which deploys, and
+the pull request's `closed` event, which tears the preview down. A concurrency
+group keyed on the ref alone cannot tell them apart, and `cancel-in-progress`
+then lets the teardown cancel the deploy — the teardown reports green and
+production keeps serving the previous build. It is reported because the failure
+is invisible: a cancelled run is not a failed run, so nothing goes red and the
+deployment simply does not happen. The rule demands the whole hazard — `push`,
+a `closed`-typed pull request trigger, a group that never names
+`github.event_name`, and a literal `cancel-in-progress: true` — so ordinary CI
+and deliberately gated cancels stay silent.
+
 ---
 
 ## Severity
@@ -214,9 +227,15 @@ ways that are hard to see. See
 ## Adding a rule
 
 1. Implement `IWorkflowSecurityRule` in `Infrastructure/Rules`, taking the next
-   free id — which is **GHA013**, not GHA012. `GHA012` is already issued by
-   `WorkflowAnalysisService` for a stale acceptance comment, so reflection over
-   `Rules/` will not show it as taken.
+   free id — which is **GHA014**. GHA013 is the self-cancelling deploy rule, and
+   `GHA012` is issued by `WorkflowAnalysisService` for a stale acceptance
+   comment, so reflection over `Rules/` will not show it as taken.
+
+   This paragraph used to be the only thing holding that allocation, and a rule
+   was duly written against GHA012 with the whole suite passing — every id test
+   enumerates the rules, and GHA012 implements none. `RuleIdAllocationTests`
+   asserts it now, so the next collision fails a test instead of depending on
+   whoever reads this first.
 2. Add it to `CreateRules()` in `SecurityRuleTests`.
 3. Write tests for the positive case, the negative case, **and the near-miss** —
    the workflow that looks like a violation and is not.
