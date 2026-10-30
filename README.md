@@ -287,7 +287,7 @@ Methodology, per-repository table and reproduction steps in
 - **React 19 + TypeScript 5.9**, Vite
 - **YamlDotNet** for document structure, with a line model retained for content
   inside block scalars and for line-indexed patching
-- **322 .NET tests, 28 frontend tests**, and a 25-check smoke suite that drives a
+- **578 .NET tests, 28 frontend tests**, and a 25-check smoke suite that drives a
   real server over HTTP
 - **CodeQL, Gitleaks, dependency review, Dependabot**, secret scanning with push
   protection, and SHA-pinned actions enforced by policy
