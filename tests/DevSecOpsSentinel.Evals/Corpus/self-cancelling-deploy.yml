@@ -1,0 +1,22 @@
+# GHA012 only: merging a PR starts the push deploy and the closed-event teardown in the
+# same second; a group keyed on the ref alone puts both in one group, and
+# cancel-in-progress lets the teardown cancel the deploy while reporting green.
+# Every other rule is suppressed: permissions declared, timeout set, hosted runner,
+# no checkout, no actions, no interpolated input.
+name: Self-cancelling deploy
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+permissions:
+  contents: read
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - run: echo deploy

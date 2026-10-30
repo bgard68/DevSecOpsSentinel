@@ -57,7 +57,40 @@ public sealed record WorkflowStructure(
         !string.IsNullOrWhiteSpace(name) &&
         Triggers.Any(trigger =>
             trigger.Contains(name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The workflow-level <c>concurrency</c> block, when one is declared.</summary>
+    public WorkflowConcurrency? Concurrency { get; init; }
+
+    /// <summary>The <c>types</c> filters declared on triggers, for triggers that have one.</summary>
+    public IReadOnlyList<WorkflowTriggerTypes> TriggerTypes { get; init; } = [];
+
+    /// <summary>
+    /// Whether <paramref name="trigger"/> declares <paramref name="type"/> in its
+    /// <c>types</c> filter. Exact names, not substrings: <c>closed</c> must not
+    /// match a hypothetical <c>unclosed</c>.
+    /// </summary>
+    public bool TriggerDeclaresType(string trigger, string type) =>
+        TriggerTypes.Any(entry =>
+            entry.Trigger.Equals(trigger, StringComparison.OrdinalIgnoreCase) &&
+            entry.Types.Any(candidate =>
+                candidate.Equals(type, StringComparison.OrdinalIgnoreCase)));
 }
+
+/// <summary>
+/// The workflow-level <c>concurrency</c> block. <paramref name="Group"/> and
+/// <paramref name="CancelInProgress"/> hold the raw scalar text, expressions
+/// included — rules reason about what the author wrote, not about what one
+/// particular event would evaluate it to.
+/// </summary>
+public sealed record WorkflowConcurrency(
+    string? Group,
+    string? CancelInProgress,
+    int Line);
+
+/// <summary>The <c>types</c> filter declared on one trigger.</summary>
+public sealed record WorkflowTriggerTypes(
+    string Trigger,
+    IReadOnlyList<string> Types);
 
 /// <summary>
 /// One permission grant. <paramref name="Name"/> is empty for the scalar form
