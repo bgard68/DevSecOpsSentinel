@@ -18,7 +18,7 @@ namespace DevSecOpsSentinel.Infrastructure.Rules;
 /// </summary>
 public sealed class SelfCancellingDeployRule : IWorkflowSecurityRule
 {
-    public string RuleId => "GHA012";
+    public string RuleId => "GHA013";
     public string Title => "Pull request teardown can cancel the push deploy";
     public WorkflowSeverity Severity => WorkflowSeverity.Medium;
 

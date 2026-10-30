@@ -1329,7 +1329,7 @@ public sealed class SecurityRuleTests
         WorkflowFinding finding = Assert.Single(
             new SelfCancellingDeployRule().Evaluate(workflow));
 
-        Assert.Equal("GHA012", finding.RuleId);
+        Assert.Equal("GHA013", finding.RuleId);
     }
 
     [Fact]

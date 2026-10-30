@@ -12,8 +12,18 @@ public sealed class WorkflowAnalysisService(
     /// Reported against the acceptance mechanism itself rather than any workflow
     /// rule, so a stale or unexplained directive cannot be mistaken for the
     /// finding it refers to.
+    ///
+    /// Public rather than private because it is an issued id like any other —
+    /// and ids are already public API here, since renaming one breaks the
+    /// acceptance directives written against it. This is the only issued id no
+    /// <see cref="IWorkflowSecurityRule"/> declares, so reflection over the rules
+    /// cannot tell it is taken: a rule was written against it once (2026-10-29)
+    /// and every rule-id test passed, because each of them enumerates rules.
+    /// <c>RuleIdAllocationTests</c> compares the rules against this constant
+    /// instead, so the next attempt fails loudly rather than shipping a
+    /// duplicate.
     /// </summary>
-    private const string StaleSuppressionRuleId = "GHA012";
+    public const string StaleSuppressionRuleId = "GHA012";
 
     public async Task<WorkflowAnalysisResult> AnalyzeAsync(
         WorkflowDocument document,
