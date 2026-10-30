@@ -63,10 +63,16 @@ check are documentation changes.
 ### `api` and `frontend`
 
 `api` restores, builds, tests, audits NuGet packages, and then runs the smoke
-suite against a server it starts itself.
+suite against a server it starts itself. The test step includes the architecture
+rules in `DevSecOpsSentinel.Api.Integration.Tests` (NetArchTest), which assert
+the dependency arrows — Api → Infrastructure → Application → Domain — against
+the compiled assemblies and fail naming the types that crossed.
 
 `frontend` installs from the lockfile, verifies the toolchain, tests, audits and
-builds.
+builds. Between the tests and the audit it checks the import graph
+(`npm run depcruise`, rules in `src/devsecops-sentinel-web/.dependency-cruiser.cjs`):
+no cycles, no production import of test code, no unresolvable import — every
+rule an error, so a violation fails the job rather than printing a warning.
 
 ### `gate`
 
