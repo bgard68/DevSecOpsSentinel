@@ -14,8 +14,8 @@
       for GHSA-v5pm-xwqc-g5wc. No project directly references this package.
     -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
-    <PackageVersion Include="Scalar.AspNetCore" Version="2.18.7" />
-    <PackageVersion Include="OpenAI" Version="2.14.0" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.19.0" />
+    <PackageVersion Include="OpenAI" Version="2.15.0" />
     <!--
       Structural workflow parsing. The rule engine keeps its own line model for
       content inside block scalars and for line-indexed patching; YamlDotNet
