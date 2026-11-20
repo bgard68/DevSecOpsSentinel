@@ -13,7 +13,7 @@
       Explicitly pins the transitive OpenAPI.NET dependency above the patched 2.x floor
       for GHSA-v5pm-xwqc-g5wc. No project directly references this package.
     -->
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.21.0" />
     <PackageVersion Include="OpenAI" Version="2.15.0" />
     <!--
